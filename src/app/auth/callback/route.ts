@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
+      // If redirectTo is an invite accept page, honour it directly
+      // (the user still needs to complete signup and set a password)
+      if (redirectTo.startsWith("/invite/")) {
+        return NextResponse.redirect(new URL(redirectTo, request.url));
+      }
+
       const claims = data.user.app_metadata;
 
       // Route based on role
