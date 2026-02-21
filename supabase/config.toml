@@ -356,6 +356,39 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Disable relay-level JWT verification for functions that validate JWT internally via getUser().
+# This prevents the Supabase relay from rejecting valid JWTs due to deployment sync issues,
+# while the functions themselves still enforce authentication.
+[functions.invite]
+verify_jwt = false
+
+[functions.invite-owner]
+verify_jwt = false
+
+[functions.complete-signup]
+verify_jwt = false
+
+[functions.complete-owner-signup]
+verify_jwt = false
+
+[functions.resend-invite]
+verify_jwt = false
+
+[functions.iam-users]
+verify_jwt = false
+
+[functions.iam-user-detail]
+verify_jwt = false
+
+[functions.list-owners]
+verify_jwt = false
+
+[functions.proxy]
+verify_jwt = false
+
+[functions.stream-proxy]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
