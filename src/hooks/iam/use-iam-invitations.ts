@@ -10,37 +10,28 @@ export function useIAMInvitations(filters: IAMInvitationsFilters = {}) {
   return useQuery<InvitationDetail[]>({
     queryKey: ["iam-invitations", { tenantId, role }],
     queryFn: async () => {
-      let query = supabase
-        .from("invitations")
-        .select("id, tenant_id, role, client_id, status, expires_at, created_at, updated_at, invited_by, email, tenants(id, name), clients(id, name)")
-        .eq("status", "pending")
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
 
-      if (tenantId) {
-        query = query.eq("tenant_id", tenantId);
+      const params = new URLSearchParams();
+      if (tenantId) params.set("tenantId", tenantId);
+      if (role) params.set("role", role);
+
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/iam-invitations?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${response.status}`);
       }
-      if (role) {
-        query = query.eq("role", role);
-      }
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return (data || []).map((inv: any) => ({
-        id: inv.id,
-        tenantId: inv.tenants?.id || inv.tenant_id,
-        tenantName: inv.tenants?.name || "",
-        role: inv.role,
-        clientId: inv.client_id,
-        clientName: inv.clients?.name || null,
-        status: inv.status,
-        expiresAt: inv.expires_at,
-        createdAt: inv.created_at,
-        updatedAt: inv.updated_at,
-        invitedBy: inv.invited_by,
-        email: inv.email,
-      }));
+      const { items } = await response.json();
+      return items;
     },
     staleTime: 30_000,
   });
