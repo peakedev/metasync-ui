@@ -19,8 +19,12 @@ Architecture, ER, and sequence diagrams are in [`./diagrams/`](./diagrams/) as d
 | [database-schema.drawio](./diagrams/database-schema.drawio) | ER | All tables and foreign key relationships |
 | [proxy-flow.drawio](./diagrams/proxy-flow.drawio) | Sequence | MetaSync proxy: JWT validation -> Vault -> forward |
 | [invitation-flow.drawio](./diagrams/invitation-flow.drawio) | Sequence | Invitation: admin sends -> user accepts -> membership created |
+| [iam-architecture.drawio](./diagrams/iam-architecture.drawio) | Architecture | Owner IAM console architecture |
+| [iam-invite-owner-flow.drawio](./diagrams/iam-invite-owner-flow.drawio) | Sequence | Owner invite -> accept -> role assignment flow |
 
 ## Related
 
 - [Baseline Requirements](../specs/baseline/requirements.md) -- Full feature specification
 - [Baseline Design](../specs/baseline/design.md) -- Architecture and software design document
+- [IAM Requirements](../specs/iam/requirements.md) -- Owner IAM management requirements
+- [IAM Design](../specs/iam/design.md) -- Owner IAM management design

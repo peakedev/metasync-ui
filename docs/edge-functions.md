@@ -213,3 +213,188 @@ The caller then calls `supabase.auth.refreshSession()` to trigger the Custom Acc
 | 409 | `already_member` | User already has a membership in this tenant |
 | 410 | `invitation_expired` | `expires_at < now()` |
 | 500 | `internal_error` | Membership insert or other internal failure |
+
+---
+
+## `iam-users`
+
+**Path:** `GET /functions/v1/iam-users`
+**Source:** `supabase/functions/iam-users/index.ts`
+**Auth:** JWT required; caller must be `owner`
+
+Lists all `tenant_memberships` enriched with user emails from the Auth Admin API, tenant names, and client names. Supports filtering and pagination.
+
+### Query parameters
+
+| Param | Type | Required | Description |
+|---|---|---|---|
+| `tenantId` | `string` | No | Filter by tenant UUID |
+| `role` | `string` | No | Filter by role (`tenant_admin` or `tenant_user`) |
+| `assigned` | `string` | No | `true` = has client; `false` = no client |
+| `search` | `string` | No | Filter by email prefix (case-insensitive) |
+| `limit` | `number` | No | Max results (default 100) |
+| `offset` | `number` | No | Pagination offset (default 0) |
+
+### Response
+
+```json
+{
+  "items": [
+    {
+      "userId": "<uuid>",
+      "email": "user@example.com",
+      "role": "tenant_admin",
+      "tenantId": "<uuid>",
+      "tenantName": "Acme",
+      "clientId": null,
+      "clientName": null,
+      "membershipCreatedAt": "2024-01-15T00:00:00Z"
+    }
+  ],
+  "total": 42
+}
+```
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 403 | `forbidden` | Caller is not `owner` |
+
+---
+
+## `iam-user-detail`
+
+**Path:** `GET /functions/v1/iam-user-detail`
+**Source:** `supabase/functions/iam-user-detail/index.ts`
+**Auth:** JWT required; caller must be `owner`
+
+Returns full detail for a single user: auth info, all memberships, and all invitations by email.
+
+### Query parameters
+
+| Param | Type | Required | Description |
+|---|---|---|---|
+| `userId` | `string` | Yes | Target user UUID |
+
+### Response
+
+```json
+{
+  "user": { "id": "<uuid>", "email": "user@example.com", "provider": "email", "createdAt": "..." },
+  "memberships": [{ "id": "...", "tenantId": "...", "tenantName": "...", "role": "...", "clientId": null, "clientName": null, "createdAt": "..." }],
+  "invitations": [{ "id": "...", "tenantId": "...", "tenantName": "...", "role": "...", "status": "pending", "expiresAt": "...", "createdAt": "...", "updatedAt": "...", "invitedBy": "...", "email": "..." }]
+}
+```
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 400 | `missing_userId` | `userId` query param not provided |
+| 403 | `forbidden` | Caller is not `owner` |
+| 404 | `user_not_found` | User does not exist in `auth.users` |
+
+---
+
+## `list-owners`
+
+**Path:** `GET /functions/v1/list-owners`
+**Source:** `supabase/functions/list-owners/index.ts`
+**Auth:** JWT required; caller must be `owner`
+
+Returns all users with `raw_app_meta_data.user_role = 'owner'`. Paginates through all Auth Admin API pages.
+
+### Response
+
+```json
+{
+  "owners": [
+    { "id": "<uuid>", "email": "owner@example.com", "provider": "email", "createdAt": "..." }
+  ]
+}
+```
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 403 | `forbidden` | Caller is not `owner` |
+| 503 | `auth_admin_error` | Auth Admin API failure |
+
+---
+
+## `resend-invite`
+
+**Path:** `POST /functions/v1/resend-invite`
+**Source:** `supabase/functions/resend-invite/index.ts`
+**Auth:** JWT required; caller must be `owner` or `tenant_admin`
+
+Resends a pending invitation email and resets `expires_at` to `now() + 7 days`. Includes an idempotency check: skips if `updated_at > now() - 60 seconds`.
+
+### Request body
+
+```json
+{ "invitationId": "<uuid>" }
+```
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 400 | `missing_invitation_id` | `invitationId` not provided |
+| 403 | `forbidden` | Caller is not `owner` or `tenant_admin`, or `tenant_admin` accessing wrong tenant |
+| 404 | `invitation_not_found` | Invitation not found or not pending |
+| 429 | `too_many_requests` | Invitation was resent within the last 60 seconds |
+
+---
+
+## `invite-owner`
+
+**Path:** `POST /functions/v1/invite-owner`
+**Source:** `supabase/functions/invite-owner/index.ts`
+**Auth:** JWT required; caller must be `owner`
+
+Creates an `owner_invitations` record and sends a Supabase invite email with `redirectTo: /invite/accept-owner`.
+
+### Request body
+
+```json
+{ "email": "newowner@example.com" }
+```
+
+### Response (201)
+
+```json
+{ "ownerInvitationId": "<uuid>" }
+```
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 400 | `missing_email` | `email` not provided |
+| 403 | `forbidden` | Caller is not `owner` |
+| 409 | `duplicate_invitation` | Pending owner invitation already exists for this email |
+
+---
+
+## `complete-owner-signup`
+
+**Path:** `POST /functions/v1/complete-owner-signup`
+**Source:** `supabase/functions/complete-owner-signup/index.ts`
+**Auth:** JWT required (newly invited user after `verifyOtp`)
+
+Validates the `owner_invitations` record and sets `raw_app_meta_data.user_role = 'owner'` via the Auth Admin API. No `tenant_memberships` row is created for owners.
+
+### Request body
+
+None. Reads `owner_invitation_id` from `user.user_metadata`.
+
+### Error codes
+
+| Code | Error key | Reason |
+|---|---|---|
+| 404 | `no_invitation` | No `owner_invitation_id` in user metadata or record not found |
+| 409 | `invitation_already_used` | Invitation status is not `'pending'` |
+| 410 | `invitation_expired` | `expires_at < now()` |

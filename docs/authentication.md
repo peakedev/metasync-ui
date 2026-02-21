@@ -86,3 +86,28 @@ Supabase built-in reset flow:
 ## Google OAuth
 
 Configured in Supabase dashboard. The redirect URL must be added to the allowlist: `{APP_URL}/auth/callback`. The Next.js route at `app/auth/callback/route.ts` exchanges the code for a session using `supabase.auth.exchangeCodeForSession()`.
+
+## Owner Account Provisioning
+
+Owner accounts are bootstrapped via the `invite-owner` + `complete-owner-signup` edge functions.
+
+### Flow
+
+1. **Existing owner sends invite:** `POST /functions/v1/invite-owner { email }` → creates `owner_invitations` row → calls `supabase.auth.admin.inviteUserByEmail()` with `redirectTo: /invite/accept-owner` and `owner_invitation_id` in `user_metadata`.
+
+2. **New owner accepts:** User clicks email link → lands on `/invite/accept-owner` → Supabase auto-authenticates → page calls `POST /functions/v1/complete-owner-signup`.
+
+3. **Edge function completes setup:**
+   - Reads `owner_invitation_id` from `user.user_metadata`
+   - Validates `owner_invitations` record: status = pending, not expired
+   - Calls `supabase.auth.admin.updateUserById(userId, { app_metadata: { user_role: 'owner' } })`
+   - Marks invitation as accepted
+
+4. **Session refresh:** Page calls `supabase.auth.refreshSession()` → Custom Token Hook sees `user_role = 'owner'` in `app_metadata` → passes through → JWT now has owner claims → redirect to `/owner/tenants`.
+
+### Security
+
+- `owner_invitation_id` in `user_metadata` is a lookup key only — role is not trusted from metadata
+- The edge function validates the DB record before setting `user_role`
+- Only the `invite-owner` function can create `owner_invitations` rows (via service role)
+- A modified `owner_invitation_id` simply fails the DB lookup

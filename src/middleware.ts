@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ["/login", "/invite/accept", "/auth/callback", "/login/reset", "/login/update-password"];
+  const publicRoutes = ["/login", "/invite/accept", "/invite/accept-owner", "/auth/callback", "/login/reset", "/login/update-password"];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   if (!user && !isPublicRoute) {

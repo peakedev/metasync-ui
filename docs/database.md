@@ -133,6 +133,40 @@ Full implementation in [authentication.md](./authentication.md).
 
 ---
 
+## `owner_invitations`
+
+Tracks owner account invitations. Separate from `invitations` to avoid `tenant_id = null` handling.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | `gen_random_uuid()` |
+| `email` | `text` NOT NULL | |
+| `invited_by` | `uuid` NOT NULL FK → `auth.users(id)` | |
+| `status` | `text` NOT NULL DEFAULT `'pending'` | `'pending'`, `'accepted'`, `'expired'` |
+| `expires_at` | `timestamptz` NOT NULL DEFAULT `now() + interval '7 days'` | |
+| `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | |
+
+Index: `idx_owner_invitations_email ON owner_invitations(email)`
+RLS: `deny_anon` (all anon blocked). Accessed only via service role in edge functions.
+
+---
+
+## `invitations.updated_at` Column
+
+Added to support resend idempotency. A trigger (`invitations_updated_at`) automatically sets `updated_at = now()` on every UPDATE. The `resend-invite` edge function checks `updated_at > now() - interval '60 seconds'` to debounce rapid resends.
+
+---
+
+## Last-Admin Guard Trigger
+
+A `BEFORE DELETE OR UPDATE` trigger on `tenant_memberships` (`last_admin_guard`) prevents:
+- **Deleting** the last `tenant_admin` from a tenant (raises `last_admin_removal`)
+- **Demoting** the last `tenant_admin` to `tenant_user` (raises `last_admin_demotion`)
+
+This provides a database-level backstop against race conditions that a UI-only check cannot prevent.
+
+---
+
 ## Vault
 
 API keys are not stored as plain-text columns. See [vault.md](./vault.md).

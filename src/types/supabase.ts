@@ -127,6 +127,7 @@ export type Database = {
           status: "pending" | "accepted" | "expired";
           expires_at: string;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -138,6 +139,7 @@ export type Database = {
           status?: "pending" | "accepted" | "expired";
           expires_at?: string;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -149,6 +151,7 @@ export type Database = {
           status?: "pending" | "accepted" | "expired";
           expires_at?: string;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -166,6 +169,33 @@ export type Database = {
             referencedColumns: ["id"];
           }
         ];
+      };
+      owner_invitations: {
+        Row: {
+          id: string;
+          email: string;
+          invited_by: string;
+          status: "pending" | "accepted" | "expired";
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          invited_by: string;
+          status?: "pending" | "accepted" | "expired";
+          expires_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          invited_by?: string;
+          status?: "pending" | "accepted" | "expired";
+          expires_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
