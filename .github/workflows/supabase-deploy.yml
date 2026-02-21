@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
+        with:
+          version: 2.76.12
       - run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_REF }}
       - name: Apply database migrations
         run: supabase db push
