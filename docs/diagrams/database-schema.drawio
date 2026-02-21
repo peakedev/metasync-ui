@@ -1,0 +1,84 @@
+<mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ===== auth.users (external) ===== -->
+    <mxCell id="users" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#e1d5e7'&gt;&lt;th colspan='3'&gt;auth.users (Supabase managed)&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;email&lt;/td&gt;&lt;td&gt;text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;raw_app_meta_data&lt;/td&gt;&lt;td&gt;jsonb&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;raw_user_meta_data&lt;/td&gt;&lt;td&gt;jsonb&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="40" y="40" width="300" height="140" as="geometry" />
+    </mxCell>
+
+    <!-- ===== tenants ===== -->
+    <mxCell id="tenants" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#dae8fc'&gt;&lt;th colspan='3'&gt;tenants&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;name&lt;/td&gt;&lt;td&gt;text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;slug&lt;/td&gt;&lt;td&gt;text UNIQUE&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;backend_url&lt;/td&gt;&lt;td&gt;text (nullable)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;is_deleted&lt;/td&gt;&lt;td&gt;boolean&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;created_at&lt;/td&gt;&lt;td&gt;timestamptz&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="420" y="40" width="300" height="200" as="geometry" />
+    </mxCell>
+
+    <!-- ===== clients ===== -->
+    <mxCell id="clients" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#dae8fc'&gt;&lt;th colspan='3'&gt;clients&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;tenant_id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;metasync_client_id&lt;/td&gt;&lt;td&gt;text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;name&lt;/td&gt;&lt;td&gt;text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;enabled&lt;/td&gt;&lt;td&gt;boolean&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;vault_secret_id&lt;/td&gt;&lt;td&gt;uuid (nullable)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;created_at&lt;/td&gt;&lt;td&gt;timestamptz&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="420" y="310" width="300" height="230" as="geometry" />
+    </mxCell>
+
+    <!-- ===== tenant_memberships ===== -->
+    <mxCell id="memberships" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#dae8fc'&gt;&lt;th colspan='3'&gt;tenant_memberships&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;tenant_id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;user_id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;role&lt;/td&gt;&lt;td&gt;tenant_admin | tenant_user&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK?&lt;/b&gt;&lt;/td&gt;&lt;td&gt;client_id&lt;/td&gt;&lt;td&gt;uuid (nullable)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;created_at&lt;/td&gt;&lt;td&gt;timestamptz&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="40" y="260" width="300" height="210" as="geometry" />
+    </mxCell>
+
+    <!-- ===== invitations ===== -->
+    <mxCell id="invitations" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#dae8fc'&gt;&lt;th colspan='3'&gt;invitations&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;tenant_id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;email&lt;/td&gt;&lt;td&gt;text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;role&lt;/td&gt;&lt;td&gt;tenant_admin | tenant_user&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK?&lt;/b&gt;&lt;/td&gt;&lt;td&gt;client_id&lt;/td&gt;&lt;td&gt;uuid (nullable)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;FK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;invited_by&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;status&lt;/td&gt;&lt;td&gt;pending | accepted | expired&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;expires_at&lt;/td&gt;&lt;td&gt;timestamptz&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="40" y="560" width="300" height="250" as="geometry" />
+    </mxCell>
+
+    <!-- ===== vault.secrets (conceptual) ===== -->
+    <mxCell id="vault-secrets" value="&lt;table width='100%' cellspacing='0' cellpadding='4'&gt;&lt;tr style='background:#ffe6cc'&gt;&lt;th colspan='3'&gt;vault.secrets (Supabase Vault)&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;PK&lt;/b&gt;&lt;/td&gt;&lt;td&gt;id&lt;/td&gt;&lt;td&gt;uuid&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;name&lt;/td&gt;&lt;td&gt;text (naming convention)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;secret&lt;/td&gt;&lt;td&gt;text (encrypted)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;created_at&lt;/td&gt;&lt;td&gt;timestamptz&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;br&gt;&lt;i&gt;Names: tenant_{id}_admin_key&lt;br&gt;client_{id}_api_key&lt;/i&gt;" style="text;html=1;strokeColor=#d6b656;fillColor=#ffe6cc;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="1">
+      <mxGeometry x="800" y="310" width="320" height="200" as="geometry" />
+    </mxCell>
+
+    <!-- RELATIONSHIPS -->
+
+    <!-- auth.users → tenant_memberships (user_id) -->
+    <mxCell id="r1" value="1:N (user_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;" edge="1" source="users" target="memberships" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- auth.users → invitations (invited_by) -->
+    <mxCell id="r2" value="1:N (invited_by)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;dashed=1;" edge="1" source="users" target="invitations" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- tenants → tenant_memberships (tenant_id) -->
+    <mxCell id="r3" value="1:N (tenant_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;" edge="1" source="tenants" target="memberships" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- tenants → clients (tenant_id) -->
+    <mxCell id="r4" value="1:N (tenant_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;" edge="1" source="tenants" target="clients" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- tenants → invitations (tenant_id) -->
+    <mxCell id="r5" value="1:N (tenant_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;" edge="1" source="tenants" target="invitations" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- clients → tenant_memberships (client_id, nullable) -->
+    <mxCell id="r6" value="0..1:N (client_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERzeroToOne;startFill=0;endFill=0;dashed=1;" edge="1" source="clients" target="memberships" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- clients → invitations (client_id, nullable) -->
+    <mxCell id="r7" value="0..1:N (client_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERmany;startArrow=ERzeroToOne;startFill=0;endFill=0;dashed=1;" edge="1" source="clients" target="invitations" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- clients → vault.secrets (vault_secret_id) -->
+    <mxCell id="r8" value="1:1 (vault_secret_id)" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=ERone;startArrow=ERone;startFill=0;endFill=0;" edge="1" source="clients" target="vault-secrets" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- tenant admin key → vault.secrets (conceptual) -->
+    <mxCell id="r9-label" value="Also: tenant admin key stored&#xa;per tenant (naming convention)" style="text;html=1;align=center;strokeColor=none;fillColor=none;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+      <mxGeometry x="800" y="520" width="320" height="40" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>

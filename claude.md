@@ -1,0 +1,173 @@
+# claude.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+### Development
+
+```bash
+npm run dev          # Start Next.js dev server (http://localhost:3000)
+npm run build        # Production build
+npm run lint         # ESLint
+npm run type-check   # tsc --noEmit
+```
+
+### Supabase (local stack)
+
+```bash
+npx supabase start              # Start local Supabase (Auth, Postgres, Studio, Edge Fns)
+npx supabase stop               # Stop local stack
+npx supabase db reset           # Drop and re-apply all migrations + seed
+npx supabase db push            # Push local migrations to remote project
+npx supabase migration new <name>   # Create a new migration file
+npx supabase gen types typescript --local > src/types/supabase.ts  # Regenerate DB types
+npx supabase functions serve    # Serve edge functions locally (hot-reload)
+npx supabase functions deploy   # Deploy all edge functions to remote project
+npx supabase secrets set KEY=value  # Set edge function secret (remote)
+```
+
+### Testing
+
+```bash
+npm run test              # Vitest unit tests (components, hooks)
+npm run test:e2e          # Playwright E2E tests (requires local Supabase running)
+npx pg_prove -r tests/db/ # pgTAP database tests (RLS policies, token hook)
+```
+
+---
+
+## Architecture
+
+MetaSync UI is a **multi-tenant SPA** providing a management interface for MetaSync LLM pipeline backends. The **Supabase "Metasync UI" project** is the sole backend.
+
+### Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14 (App Router) · TypeScript |
+| UI | shadcn/ui · Tailwind CSS |
+| Server state | TanStack Query |
+| Auth | Supabase Auth (email/password · Google OAuth) |
+| Database | Supabase Postgres + RLS |
+| Secret storage | Supabase Vault |
+| BFF / Proxy | Supabase Edge Functions (Deno/TypeScript) |
+| Streaming | SSE via Edge Functions |
+
+### Environment Variables
+
+Three env vars are required for the frontend to connect to Supabase:
+
+```
+NEXT_PUBLIC_SUPABASE_URL      # Supabase project API URL (from project dashboard)
+NEXT_PUBLIC_SUPABASE_ANON_KEY # Supabase public anon key (from project dashboard)
+NEXT_PUBLIC_APP_URL           # This app's base URL (used in invitation redirects)
+```
+
+The Supabase client (`@supabase/ssr`) automatically attaches the user's session JWT to every request. No unauthenticated (anon role) access to any application table is permitted.
+
+### Roles
+
+| Role | MetaSync credential used | Scope |
+|---|---|---|
+| Owner | Admin API key (from Vault) | All tenants |
+| Tenant Admin | Admin API key (from Vault) | Own tenant only |
+| Tenant User | Client API key (from Vault) | Own assigned client only; blocked if unassigned |
+
+### Key Design Rules
+
+- **MetaSync credentials never touch the browser.** All calls to tenant MetaSync backends go through Supabase Edge Functions, which retrieve the relevant API key from Supabase Vault at runtime.
+- **All Supabase calls from the frontend carry a user JWT.** The `deny_anon` RLS policy on every table blocks unauthenticated queries. Edge Functions call `supabase.auth.getUser(token)` as step 1 and return 401 if the token is absent or invalid.
+- **Tenant isolation via RLS.** Every tenant-scoped table has `tenant_id` indexed and a `tenant_isolation` RLS policy filtering by `auth.jwt() -> 'app_metadata' ->> 'tenant_id'`. Owner bypasses this.
+- **Custom Access Token Hook** injects `user_role`, `tenant_id`, and `client_id` into `app_metadata` on every JWT issuance and refresh.
+
+### Project Structure (expected)
+
+```
+/
+├── app/                         # Next.js App Router
+│   ├── (auth)/login/            # Login / invite accept pages
+│   ├── owner/tenants/           # Owner: tenant management
+│   └── [tenantSlug]/            # Tenant-scoped pages
+│       ├── dashboard/
+│       ├── config/              # MetaSync backend URL + admin API key
+│       ├── clients/
+│       ├── models/
+│       ├── users/
+│       ├── prompts/
+│       ├── prompt-flows/
+│       ├── jobs/
+│       ├── workers/
+│       ├── streams/new/         # Chat interface (SSE streaming)
+│       └── runs/
+├── components/                  # Shared UI components
+├── hooks/                       # useSession, useTenant, useMetaSyncProxy, useStreamProxy
+├── lib/
+│   └── supabase.ts              # Supabase browser client (createBrowserClient)
+├── supabase/
+│   ├── functions/               # Edge Functions (Deno/TypeScript)
+│   │   ├── proxy/
+│   │   ├── stream-proxy/
+│   │   ├── invite/
+│   │   └── complete-signup/
+│   └── migrations/              # Postgres migrations (tables, RLS, token hook)
+├── tests/
+│   ├── db/                      # pgTAP tests (RLS, token hook)
+│   └── e2e/                     # Playwright tests
+└── src/types/supabase.ts        # Generated by supabase gen types
+```
+
+### Edge Functions
+
+| Function | Method | Auth check | Purpose |
+|---|---|---|---|
+| `proxy` | ANY | JWT required | Forward request to tenant MetaSync backend with Vault credential |
+| `stream-proxy` | GET | JWT required | SSE proxy — pipe MetaSync stream to browser |
+| `invite` | POST | JWT (admin/owner) | Create invitation record + trigger Supabase invite email |
+| `complete-signup` | POST | JWT | Insert `tenant_memberships` row on invite acceptance |
+
+### Database Tables
+
+| Table | Description |
+|---|---|
+| `tenants` | One row per tenant; holds `name`, `slug`, `backend_url`, `is_deleted` |
+| `tenant_memberships` | User ↔ tenant ↔ role ↔ client (nullable) mapping |
+| `clients` | MetaSync clients per tenant; `vault_secret_id` references Vault entry |
+| `invitations` | Pending/accepted/expired invite records |
+
+Vault secret naming: `tenant_{tenant_id}_admin_key` · `client_{client_id}_api_key`
+
+---
+
+## Development Process
+
+### Steering Documents
+
+The `./specs` folder contains steering documents for the project:
+- `./specs/baseline/requirements.md` — Full baseline feature requirements
+- `./specs/baseline/design.md` — Architecture and software design for the baseline
+- `./docs/diagrams/` — draw.io architecture, ER, and sequence diagrams
+
+### Spec-Driven Development
+
+For each new major feature, create a new folder in `./specs` containing:
+- `requirements.md` — Detailed description of the feature requirements
+- `design.md` — Detailed design of the feature
+- `tasks.md` — List of tasks, grouped by phases, to implement the feature
+
+Folders are named after the Linear key of the project/ticket they relate to (usually `TDD-1234` format).
+
+### Documentation
+
+When a task is completed, create or update documentation in `./docs` to reflect the changes:
+1. Keep one file per functional or technical domain area
+2. **Always update `./docs/index.md`** when adding new documentation files
+3. Before finishing any task that adds or modifies features, check if documentation needs updating
+
+### README.md
+
+Update the README where necessary but keep it generic. The README.md should cover:
+- Project title and description
+- Usage (how to run, environment variables)
+- Project structure
+- Link to `./specs/baseline/requirements.md` for full feature list
