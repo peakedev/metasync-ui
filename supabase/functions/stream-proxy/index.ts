@@ -1,0 +1,148 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/cors.ts";
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "missing_jwt" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "invalid_jwt" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const claims = user.app_metadata;
+    const url = new URL(req.url);
+    const tenantId = url.searchParams.get("tenantId");
+    const model = url.searchParams.get("model");
+    const temperature = url.searchParams.get("temperature");
+    const userPrompt = url.searchParams.get("userPrompt");
+    const additionalPrompts = url.searchParams.get("additionalPrompts");
+
+    if (!tenantId || !model || !userPrompt) {
+      return new Response(JSON.stringify({ error: "missing_params" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Tenant access check
+    if (claims.user_role !== "owner" && claims.tenant_id !== tenantId) {
+      return new Response(JSON.stringify({ error: "tenant_mismatch" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Get backend URL
+    const { data: tenant } = await serviceClient
+      .from("tenants")
+      .select("backend_url")
+      .eq("id", tenantId)
+      .single();
+
+    if (!tenant?.backend_url) {
+      return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get API key
+    let secretName: string;
+    if (claims.user_role === "tenant_admin" || claims.user_role === "owner") {
+      secretName = `tenant_${tenantId}_admin_key`;
+    } else if (claims.client_id) {
+      secretName = `client_${claims.client_id}_api_key`;
+    } else {
+      return new Response(JSON.stringify({ error: "no_client" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Query vault for API key
+    const { data: secrets } = await serviceClient
+      .from("vault.decrypted_secrets" as never)
+      .select("decrypted_secret")
+      .eq("name" as never, secretName)
+      .single();
+
+    const apiKey = (secrets as { decrypted_secret: string } | null)?.decrypted_secret;
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Build request body
+    const streamBody: Record<string, unknown> = {
+      model,
+      temperature: temperature ? parseFloat(temperature) : undefined,
+      userPrompt,
+    };
+    if (additionalPrompts) {
+      streamBody.additionalPrompts = JSON.parse(additionalPrompts);
+    }
+
+    // Forward SSE request to MetaSync backend
+    const metasyncResponse = await fetch(`${tenant.backend_url}/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        api_key: apiKey,
+      },
+      body: JSON.stringify(streamBody),
+    });
+
+    if (!metasyncResponse.ok || !metasyncResponse.body) {
+      const errorText = await metasyncResponse.text();
+      return new Response(errorText, {
+        status: metasyncResponse.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Pipe the SSE stream
+    return new Response(metasyncResponse.body, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Stream-Id": metasyncResponse.headers.get("X-Stream-Id") || "",
+      },
+    });
+  } catch (err) {
+    console.error("Stream proxy error:", err);
+    return new Response(JSON.stringify({ error: "backend_unreachable" }), {
+      status: 503,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
