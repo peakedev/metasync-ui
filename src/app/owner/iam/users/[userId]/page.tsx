@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUserDetail } from "@/hooks/iam/use-user-detail";
 import { useIAMMutations } from "@/hooks/iam/use-iam-mutations";
-import { IAMNav } from "@/components/iam/iam-nav";
 import { UserDetailCard } from "@/components/iam/user-detail-card";
 import { MembershipRow } from "@/components/iam/membership-row";
 import { InvitationRow } from "@/components/iam/invitation-row";
@@ -26,7 +25,6 @@ export default function UserDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <IAMNav />
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-20 animate-pulse rounded bg-muted" />
@@ -39,7 +37,6 @@ export default function UserDetailPage() {
   if (error || !data) {
     return (
       <div className="space-y-6">
-        <IAMNav />
         <div className="text-center py-12">
           <p className="text-muted-foreground">User not found.</p>
           <Link href="/owner/iam/users">
@@ -124,8 +121,6 @@ export default function UserDetailPage() {
 
   return (
     <div className="space-y-6">
-      <IAMNav />
-
       <Link href="/owner/iam/users" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" />
         Back to users

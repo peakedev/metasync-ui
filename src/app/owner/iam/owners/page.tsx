@@ -2,7 +2,6 @@
 
 import { useOwnerList } from "@/hooks/iam/use-owner-list";
 import { useSession } from "@/hooks/use-session";
-import { IAMNav } from "@/components/iam/iam-nav";
 import { OwnerRow } from "@/components/iam/owner-row";
 import { InviteOwnerDialog } from "@/components/iam/invite-owner-dialog";
 
@@ -12,7 +11,6 @@ export default function OwnersPage() {
 
   return (
     <div className="space-y-6">
-      <IAMNav />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Owners</h1>
         <InviteOwnerDialog />

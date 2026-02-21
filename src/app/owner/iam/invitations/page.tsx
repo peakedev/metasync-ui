@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useIAMInvitations } from "@/hooks/iam/use-iam-invitations";
 import { useIAMMutations } from "@/hooks/iam/use-iam-mutations";
-import { IAMNav } from "@/components/iam/iam-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RotateCcw, X, AlertTriangle } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import type { IAMInvitationsFilters } from "@/types/iam";
@@ -41,7 +38,6 @@ export default function InvitationsPage() {
 function InvitationsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
 
   const filters: IAMInvitationsFilters = {
     tenantId: searchParams.get("tenantId") || undefined,
@@ -63,21 +59,6 @@ function InvitationsPageContent() {
       return data;
     },
   });
-
-  // Auto-expire stale invitations on mount
-  useEffect(() => {
-    const staleIds = invitations
-      .filter((inv) => inv.status === "pending" && new Date(inv.expiresAt) < new Date())
-      .map((inv) => inv.id);
-    if (staleIds.length > 0) {
-      supabase
-        .from("invitations")
-        .update({ status: "expired" as const })
-        .in("id", staleIds)
-        .then(() => queryClient.invalidateQueries({ queryKey: ["iam-invitations"] }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invitations.length]);
 
   function updateFilter(key: string, value: string | undefined) {
     const params = new URLSearchParams(searchParams.toString());
@@ -114,7 +95,6 @@ function InvitationsPageContent() {
 
   return (
     <div className="space-y-6">
-      <IAMNav />
       <h1 className="text-2xl font-semibold">Pending Invitations</h1>
 
       <div className="flex gap-3">
@@ -170,9 +150,7 @@ function InvitationsPageContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invitations.map((inv) => {
-              const isExpired = new Date(inv.expiresAt) < new Date();
-              return (
+            {invitations.map((inv) => (
                 <TableRow key={inv.id}>
                   <TableCell className="font-medium">{inv.email}</TableCell>
                   <TableCell>{inv.tenantName}</TableCell>
@@ -185,11 +163,8 @@ function InvitationsPageContent() {
                   <TableCell className="text-muted-foreground">
                     {new Date(inv.createdAt).toLocaleDateString()}
                   </TableCell>
-                  <TableCell>
-                    <span className={isExpired ? "text-destructive flex items-center gap-1" : "text-muted-foreground"}>
-                      {isExpired && <AlertTriangle className="h-3 w-3" />}
-                      {new Date(inv.expiresAt).toLocaleDateString()}
-                    </span>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(inv.expiresAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -214,8 +189,7 @@ function InvitationsPageContent() {
                     </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
+            ))}
             {invitations.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
