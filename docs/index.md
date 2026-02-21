@@ -6,6 +6,7 @@
 - [Authentication & Authorization](./auth.md) -- Auth flows, roles, RLS, custom token hook
 - [Edge Functions](./edge-functions.md) -- Proxy, stream-proxy, invite, complete-signup
 - [Frontend Features](./features.md) -- Page-by-page feature summary
+- [Supabase RLS Reference](./supabase-rls.md) -- RLS policies, verification queries, and new-project setup checklist
 - [Development Guide](./development.md) -- Setup, running, testing, and deployment
 
 ## Diagrams
