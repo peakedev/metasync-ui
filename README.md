@@ -1,6 +1,6 @@
 # MetaSync UI
 
-A multi-tenant web application providing a complete management interface for [MetaSync](https://github.com/peakedev/metasync), an (a)synchronous LLM processing pipeline. Built on Next.js with Supabase as the sole backend.
+A multi-tenant web app providing a complete management interface for [MetaSync](https://github.com/peakedev/metasync), an (a)synchronous LLM processing pipeline. Built on Next.js with Supabase as the sole backend.
 
 MetaSync UI supports three user roles (Owner, Tenant Admin, Tenant User) with full tenant isolation via Row Level Security, secure credential management through Supabase Vault, and real-time SSE streaming for interactive LLM chat sessions.
 
