@@ -13,6 +13,9 @@ concurrency:
   group: deploy-supabase
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     name: Apply Migrations & Deploy Functions
@@ -21,6 +24,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: supabase/setup-cli@v1
         with:
           version: 2.76.12
