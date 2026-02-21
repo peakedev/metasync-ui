@@ -61,7 +61,6 @@ Deno.serve(async (req: Request) => {
         "id, tenant_id, role, client_id, status, expires_at, created_at, updated_at, invited_by, email, tenants(id, name), clients(id, name)"
       )
       .eq("status", "pending")
-      .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false });
 
     // Tenant admins can only see their own tenant's invitations

@@ -71,17 +71,25 @@ Deno.serve(async (req: Request) => {
     // Check for existing pending invitation
     const { data: existing } = await serviceClient
       .from("invitations")
-      .select("id")
+      .select("id, expires_at")
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .eq("status", "pending")
       .single();
 
     if (existing) {
-      return new Response(JSON.stringify({ error: "duplicate_invitation" }), {
-        status: 409,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Auto-expire if past expiry date; otherwise block as duplicate
+      if (new Date(existing.expires_at) < new Date()) {
+        await serviceClient
+          .from("invitations")
+          .update({ status: "expired" })
+          .eq("id", existing.id);
+      } else {
+        return new Response(JSON.stringify({ error: "duplicate_invitation" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Create invitation record

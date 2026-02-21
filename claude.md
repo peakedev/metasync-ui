@@ -119,12 +119,21 @@ The Supabase client (`@supabase/ssr`) automatically attaches the user's session 
 
 ### Edge Functions
 
+**CRITICAL: When adding a new edge function, you MUST add `verify_jwt = false` for it in `supabase/config.toml`.** All functions validate JWTs internally via `supabase.auth.getUser()`. The relay-level JWT verification is disabled to prevent deployment sync issues. Forgetting this causes `401 Invalid JWT` errors at runtime.
+
 | Function | Method | Auth check | Purpose |
 |---|---|---|---|
 | `proxy` | ANY | JWT required | Forward request to tenant MetaSync backend with Vault credential |
 | `stream-proxy` | GET | JWT required | SSE proxy — pipe MetaSync stream to browser |
 | `invite` | POST | JWT (admin/owner) | Create invitation record + trigger Supabase invite email |
 | `complete-signup` | POST | JWT | Insert `tenant_memberships` row on invite acceptance |
+| `iam-users` | GET | JWT (owner) | List users with tenant memberships |
+| `iam-user-detail` | GET | JWT (owner) | Single user detail with memberships and invitations |
+| `iam-invitations` | GET | JWT (owner/admin) | List pending invitations |
+| `list-owners` | GET | JWT (owner) | List owner accounts |
+| `invite-owner` | POST | JWT (owner) | Create owner invitation + trigger invite email |
+| `complete-owner-signup` | POST | JWT | Set up owner account on invite acceptance |
+| `resend-invite` | POST | JWT (admin/owner) | Resend invitation email |
 
 ### Database Tables
 
