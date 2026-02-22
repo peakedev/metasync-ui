@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
+
+const SESSION_TIMEOUT_MS = 10_000;
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -15,6 +18,74 @@ export default function UpdatePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function establish() {
+      // Handle implicit flow: hash fragments with type=recovery
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        const type = params.get("type");
+
+        if (accessToken && refreshToken && type === "recovery") {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (!cancelled && !error) {
+            setSessionReady(true);
+          }
+          if (!cancelled) setInitializing(false);
+          window.history.replaceState(null, "", window.location.pathname);
+          return;
+        }
+      }
+
+      // PKCE flow: createBrowserClient auto-detects ?code= during init and
+      // exchanges it. getSession() awaits that initialization promise, so by
+      // the time it resolves the exchange has already completed.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!cancelled && session) {
+        setSessionReady(true);
+        setInitializing(false);
+        return;
+      }
+
+      // No session yet — listen for late auth state changes (e.g. the PKCE
+      // exchange completing after getSession resolved with stale data).
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          if (!cancelled && session) {
+            setSessionReady(true);
+            setInitializing(false);
+          }
+        },
+      );
+
+      // Give up after a timeout so the user isn't stuck on a spinner forever.
+      const timeout = setTimeout(() => {
+        if (!cancelled) setInitializing(false);
+      }, SESSION_TIMEOUT_MS);
+
+      return () => {
+        subscription.unsubscribe();
+        clearTimeout(timeout);
+      };
+    }
+
+    const cleanup = establish();
+
+    return () => {
+      cancelled = true;
+      cleanup?.then((fn) => fn?.());
+    };
+  }, []);
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +107,47 @@ export default function UpdatePasswordPage() {
     }
 
     router.push("/login");
+  }
+
+  if (initializing) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center gap-3 py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Verifying your reset link&hellip;</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!sessionReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Link expired or invalid</CardTitle>
+            <CardDescription>
+              Your password reset link has expired or is no longer valid.
+              Please request a new one.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/login/reset">
+              <Button variant="outline" className="w-full">
+                Request a new reset link
+              </Button>
+            </Link>
+            <div className="mt-4 text-center">
+              <Link href="/login" className="text-sm text-muted-foreground hover:underline">
+                Back to login
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

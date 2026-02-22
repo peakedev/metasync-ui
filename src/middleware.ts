@@ -3,8 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
-  // Collect cookies written by Supabase so we can copy them onto redirect responses.
-  let pendingCookies: { name: string; value: string; options: Record<string, any> }[] = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +13,6 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          pendingCookies = [...cookiesToSet];
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -29,23 +26,6 @@ export async function middleware(request: NextRequest) {
   );
 
   const { pathname } = request.nextUrl;
-
-  // Handle PKCE code exchange for password reset directly in the middleware.
-  // The code_verifier cookie (set when resetPasswordForEmail was called) is
-  // available in request.cookies, so the exchange can happen right here.
-  const code = request.nextUrl.searchParams.get("code");
-  if (code && pathname === "/login/update-password") {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    // Redirect to the same page without the code param.
-    // Use NEXT_PUBLIC_APP_URL to avoid localhost behind reverse proxy.
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
-    const response = NextResponse.redirect(new URL("/login/update-password", baseUrl));
-    // Attach session cookies to the redirect response.
-    pendingCookies.forEach(({ name, value, options }) => {
-      response.cookies.set(name, value, options);
-    });
-    return response;
-  }
 
   const {
     data: { user },
