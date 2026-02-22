@@ -30,6 +30,13 @@ export async function GET(request: NextRequest) {
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
+              // Don't clear the code_verifier from the cookie store during
+              // this request — _removeSession() wipes it as a side effect
+              // during initialization, but exchangeCodeForSession needs to
+              // read it from getAll() afterward.
+              if (name.endsWith("-code-verifier") && options?.maxAge === 0) {
+                return;
+              }
               cookieStore.set(name, value, options);
             });
             pendingCookies.push(...cookiesToSet);

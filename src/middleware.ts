@@ -27,6 +27,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Auth callback handles its own code exchange. Calling getUser() here
+  // would trigger _removeSession() for stale sessions, which wipes the
+  // PKCE code_verifier cookie before the callback route handler can use it.
+  if (pathname.startsWith("/auth/callback")) {
+    return supabaseResponse;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
