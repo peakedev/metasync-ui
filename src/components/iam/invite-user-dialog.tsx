@@ -98,7 +98,7 @@ export function InviteUserDialog({ defaultTenantId, onSuccess }: InviteUserDialo
     },
     onSuccess: (data) => {
       if (data?.warning) {
-        toast.warning(`Invitation created but email delivery failed. Use Resend from the Invitations page.`);
+        toast.warning(data.warning);
       } else {
         toast.success(`Invitation sent to ${email}`);
       }
