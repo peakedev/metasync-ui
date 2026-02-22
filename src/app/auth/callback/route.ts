@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       let destination = redirectTo;
 
-      // Honour redirectTo for invite accept and password update pages
-      if (!redirectTo.startsWith("/invite/") && redirectTo !== "/login/update-password") {
+      // Honour redirectTo for invite accept pages
+      if (!redirectTo.startsWith("/invite/")) {
         const claims = data.user.app_metadata;
 
         if (claims?.user_role === "owner") {

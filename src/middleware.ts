@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  // Collect cookies written by Supabase so we can copy them onto redirect responses.
+  let pendingCookies: { name: string; value: string; options: Record<string, any> }[] = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +15,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          pendingCookies = [...cookiesToSet];
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -25,23 +28,28 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  const { pathname } = request.nextUrl;
+
+  // Handle PKCE code exchange for password reset directly in the middleware.
+  // The code_verifier cookie (set when resetPasswordForEmail was called) is
+  // available in request.cookies, so the exchange can happen right here.
+  const code = request.nextUrl.searchParams.get("code");
+  if (code && pathname === "/login/update-password") {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    // Redirect to the same page without the code param.
+    // Use NEXT_PUBLIC_APP_URL to avoid localhost behind reverse proxy.
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const response = NextResponse.redirect(new URL("/login/update-password", baseUrl));
+    // Attach session cookies to the redirect response.
+    pendingCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
+    return response;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-
-  // If a PKCE code arrives on /login/update-password, route through /auth/callback
-  // so the code is exchanged server-side for a session before the page loads.
-  // Uses NEXT_PUBLIC_APP_URL to avoid localhost redirects behind a reverse proxy.
-  const code = request.nextUrl.searchParams.get("code");
-  if (code && pathname === "/login/update-password") {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
-    const url = new URL("/auth/callback", baseUrl);
-    url.searchParams.set("code", code);
-    url.searchParams.set("redirectTo", "/login/update-password");
-    return NextResponse.redirect(url);
-  }
 
   // Public routes that don't require authentication
   const publicRoutes = ["/login", "/invite/accept", "/invite/accept-owner", "/auth/callback", "/login/reset", "/login/update-password"];
