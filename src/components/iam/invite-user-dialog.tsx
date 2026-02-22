@@ -96,8 +96,12 @@ export function InviteUserDialog({ defaultTenantId, onSuccess }: InviteUserDialo
 
       return response.json();
     },
-    onSuccess: () => {
-      toast.success(`Invitation sent to ${email}`);
+    onSuccess: (data) => {
+      if (data?.warning) {
+        toast.warning(`Invitation created but email delivery failed. Use Resend from the Invitations page.`);
+      } else {
+        toast.success(`Invitation sent to ${email}`);
+      }
       queryClient.invalidateQueries({ queryKey: ["iam-users"] });
       queryClient.invalidateQueries({ queryKey: ["iam-invitations"] });
       resetForm();

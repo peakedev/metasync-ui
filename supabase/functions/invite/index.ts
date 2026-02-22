@@ -119,14 +119,22 @@ Deno.serve(async (req: Request) => {
     // Send invitation email via Supabase Auth
     // Route through /auth/callback so the PKCE code gets exchanged for a session,
     // then redirect to the invite accept page.
+    const redirectTo = `${appUrl}/auth/callback?redirectTo=/invite/accept`;
     const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${appUrl}/auth/callback?redirectTo=/invite/accept`,
+      redirectTo,
       data: { invitation_id: invitation.id },
     });
 
     if (inviteError) {
       console.error("Invite email error:", inviteError);
-      // Still return success — invitation record exists
+      // Invitation record created but email failed — tell the caller
+      return new Response(JSON.stringify({
+        ...invitation,
+        warning: `Invitation created but email failed: ${inviteError.message}`,
+      }), {
+        status: 201,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify(invitation), {

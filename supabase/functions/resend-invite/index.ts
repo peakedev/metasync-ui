@@ -95,10 +95,11 @@ Deno.serve(async (req: Request) => {
     // Resend the invitation email
     // Route through /auth/callback so the PKCE code gets exchanged for a session,
     // then redirect to the invite accept page.
+    const redirectTo = `${appUrl}/auth/callback?redirectTo=/invite/accept`;
     const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(
       invitation.email,
       {
-        redirectTo: `${appUrl}/auth/callback?redirectTo=/invite/accept`,
+        redirectTo,
         data: { invitation_id: invitation.id },
       }
     );
