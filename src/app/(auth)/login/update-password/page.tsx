@@ -23,28 +23,7 @@ export default function UpdatePasswordPage() {
     let cancelled = false;
 
     async function establish() {
-      // 1. PKCE flow: ?code= in URL — exchange it explicitly
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (cancelled) return;
-
-        if (error) {
-          setError(error.message);
-          setInitializing(false);
-          return;
-        }
-
-        url.searchParams.delete("code");
-        window.history.replaceState(null, "", url.toString());
-        setSessionReady(true);
-        setInitializing(false);
-        return;
-      }
-
-      // 2. Implicit flow: #access_token=...&type=recovery in hash
+      // Implicit flow fallback: #access_token=...&type=recovery in hash
       const hash = window.location.hash;
       if (hash) {
         const params = new URLSearchParams(hash.substring(1));
@@ -72,8 +51,7 @@ export default function UpdatePasswordPage() {
         }
       }
 
-      // 3. No code or hash — check if a session already exists in cookies
-      //    (e.g. user refreshed the page after a successful exchange)
+      // Session should already exist in cookies (set by /auth/callback server-side exchange)
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
 
