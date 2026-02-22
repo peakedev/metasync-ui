@@ -31,17 +31,6 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // If a PKCE code arrives on /login/update-password, route through /auth/callback
-  // so the code is exchanged for a session before the page loads.
-  const code = request.nextUrl.searchParams.get("code");
-  if (code && pathname === "/login/update-password") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/callback";
-    url.searchParams.set("code", code);
-    url.searchParams.set("redirectTo", "/login/update-password");
-    return NextResponse.redirect(url);
-  }
-
   // Public routes that don't require authentication
   const publicRoutes = ["/login", "/invite/accept", "/invite/accept-owner", "/auth/callback", "/login/reset", "/login/update-password"];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
