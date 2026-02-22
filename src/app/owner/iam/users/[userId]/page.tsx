@@ -97,7 +97,13 @@ export default function UserDetailPage() {
     resendInvitation.mutate(
       { invitationId },
       {
-        onSuccess: () => toast.success("Invitation resent"),
+        onSuccess: (data) => {
+          if (data?.autoAccepted) {
+            toast.success("User already has an account — added to tenant directly.");
+          } else {
+            toast.success("Invitation resent");
+          }
+        },
         onError: (err) => {
           if (err.message === "too_many_requests") {
             toast.error("Invitation was just resent, please wait");

@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      // If redirectTo is an invite accept page, honour it directly
-      // (the user still needs to complete signup and set a password)
-      if (redirectTo.startsWith("/invite/")) {
+      // Honour redirectTo for invite accept and password update pages
+      // (these pages require an active session established by this code exchange)
+      if (redirectTo.startsWith("/invite/") || redirectTo.startsWith("/login/update-password")) {
         return NextResponse.redirect(new URL(redirectTo, request.url));
       }
 
