@@ -104,8 +104,40 @@ Deno.serve(async (req: Request) => {
       }
     );
 
+    // If inviteUserByEmail fails (user already exists), delete stale
+    // unconfirmed auth user and retry.
     if (inviteError) {
-      console.error("Resend invite email error:", inviteError);
+      console.error("Resend inviteUserByEmail failed:", inviteError.message);
+
+      let staleUserId: string | null = null;
+      let page = 1;
+      const perPage = 50;
+      while (!staleUserId) {
+        const { data: { users }, error: listErr } =
+          await serviceClient.auth.admin.listUsers({ page, perPage });
+        if (listErr || !users || users.length === 0) break;
+
+        const match = users.find(
+          (u) => u.email === invitation.email && !u.email_confirmed_at
+        );
+        if (match) {
+          staleUserId = match.id;
+          break;
+        }
+        if (users.length < perPage) break;
+        page++;
+      }
+
+      if (staleUserId) {
+        await serviceClient.auth.admin.deleteUser(staleUserId);
+        const retry = await serviceClient.auth.admin.inviteUserByEmail(
+          invitation.email,
+          { redirectTo, data: { invitation_id: invitation.id } }
+        );
+        if (retry.error) {
+          console.error("Resend retry also failed:", retry.error.message);
+        }
+      }
     }
 
     // Update expires_at (trigger updates updated_at automatically)

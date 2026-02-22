@@ -120,14 +120,51 @@ Deno.serve(async (req: Request) => {
     // Route through /auth/callback so the PKCE code gets exchanged for a session,
     // then redirect to the invite accept page.
     const redirectTo = `${appUrl}/auth/callback?redirectTo=/invite/accept`;
-    const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
+    let { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
       redirectTo,
       data: { invitation_id: invitation.id },
     });
 
+    // If inviteUserByEmail fails (e.g. "User already registered"), check if
+    // there's a stale unconfirmed auth user from a previous invite and retry.
     if (inviteError) {
-      console.error("Invite email error:", inviteError);
-      // Invitation record created but email failed — tell the caller
+      console.error("inviteUserByEmail failed:", inviteError.message);
+
+      // Search for the existing auth user by email using paginated admin API
+      let staleUserId: string | null = null;
+      let page = 1;
+      const perPage = 50;
+      while (!staleUserId) {
+        const { data: { users }, error: listErr } =
+          await serviceClient.auth.admin.listUsers({ page, perPage });
+        if (listErr || !users || users.length === 0) break;
+
+        const match = users.find(
+          (u) => u.email === email && !u.email_confirmed_at
+        );
+        if (match) {
+          staleUserId = match.id;
+          break;
+        }
+        if (users.length < perPage) break;
+        page++;
+      }
+
+      if (staleUserId) {
+        // Delete the unconfirmed auth user so we can re-invite
+        await serviceClient.auth.admin.deleteUser(staleUserId);
+
+        // Retry the invite
+        const retry = await serviceClient.auth.admin.inviteUserByEmail(email, {
+          redirectTo,
+          data: { invitation_id: invitation.id },
+        });
+        inviteError = retry.error;
+      }
+    }
+
+    if (inviteError) {
+      console.error("Invite email error after retry:", inviteError);
       return new Response(JSON.stringify({
         ...invitation,
         warning: `Invitation created but email failed: ${inviteError.message}`,
