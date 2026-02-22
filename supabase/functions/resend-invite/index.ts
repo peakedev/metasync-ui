@@ -92,52 +92,67 @@ Deno.serve(async (req: Request) => {
 
     const appUrl = Deno.env.get("APP_URL") || "http://localhost:3000";
 
-    // Resend the invitation email
-    // Route through /auth/callback so the PKCE code gets exchanged for a session,
-    // then redirect to the invite accept page.
+    // Check if auth user already exists and is confirmed
     const redirectTo = `${appUrl}/auth/callback?redirectTo=/invite/accept`;
+    let existingAuthUser: { id: string; confirmed: boolean } | null = null;
+    let page = 1;
+    const perPage = 50;
+    while (true) {
+      const { data: { users }, error: listErr } =
+        await serviceClient.auth.admin.listUsers({ page, perPage });
+      if (listErr || !users || users.length === 0) break;
+
+      const match = users.find((u) => u.email === invitation.email);
+      if (match) {
+        existingAuthUser = { id: match.id, confirmed: !!match.email_confirmed_at };
+        break;
+      }
+      if (users.length < perPage) break;
+      page++;
+    }
+
+    if (existingAuthUser?.confirmed) {
+      // User already has an account — auto-accept
+      const { data: existingMembership } = await serviceClient
+        .from("tenant_memberships")
+        .select("id")
+        .eq("tenant_id", invitation.tenant_id)
+        .eq("user_id", existingAuthUser.id)
+        .single();
+
+      if (!existingMembership) {
+        await serviceClient.from("tenant_memberships").insert({
+          tenant_id: invitation.tenant_id,
+          user_id: existingAuthUser.id,
+          role: invitation.role,
+          client_id: invitation.client_id,
+        });
+      }
+
+      await serviceClient
+        .from("invitations")
+        .update({ status: "accepted" })
+        .eq("id", invitationId);
+
+      return new Response(JSON.stringify({ success: true, autoAccepted: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Unconfirmed stale user — delete and re-invite
+    if (existingAuthUser && !existingAuthUser.confirmed) {
+      await serviceClient.auth.admin.deleteUser(existingAuthUser.id);
+    }
+
+    // Send invitation email
     const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(
       invitation.email,
-      {
-        redirectTo,
-        data: { invitation_id: invitation.id },
-      }
+      { redirectTo, data: { invitation_id: invitation.id } }
     );
 
-    // If inviteUserByEmail fails (user already exists), delete stale
-    // unconfirmed auth user and retry.
     if (inviteError) {
-      console.error("Resend inviteUserByEmail failed:", inviteError.message);
-
-      let staleUserId: string | null = null;
-      let page = 1;
-      const perPage = 50;
-      while (!staleUserId) {
-        const { data: { users }, error: listErr } =
-          await serviceClient.auth.admin.listUsers({ page, perPage });
-        if (listErr || !users || users.length === 0) break;
-
-        const match = users.find(
-          (u) => u.email === invitation.email && !u.email_confirmed_at
-        );
-        if (match) {
-          staleUserId = match.id;
-          break;
-        }
-        if (users.length < perPage) break;
-        page++;
-      }
-
-      if (staleUserId) {
-        await serviceClient.auth.admin.deleteUser(staleUserId);
-        const retry = await serviceClient.auth.admin.inviteUserByEmail(
-          invitation.email,
-          { redirectTo, data: { invitation_id: invitation.id } }
-        );
-        if (retry.error) {
-          console.error("Resend retry also failed:", retry.error.message);
-        }
-      }
+      console.error("Resend invite email error:", inviteError);
     }
 
     // Update expires_at (trigger updates updated_at automatically)

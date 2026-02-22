@@ -115,56 +115,79 @@ Deno.serve(async (req: Request) => {
 
     // Get APP_URL for redirect
     const appUrl = Deno.env.get("APP_URL") || "http://localhost:3000";
-
-    // Send invitation email via Supabase Auth
-    // Route through /auth/callback so the PKCE code gets exchanged for a session,
-    // then redirect to the invite accept page.
     const redirectTo = `${appUrl}/auth/callback?redirectTo=/invite/accept`;
-    let { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
+
+    // Check if an auth user already exists for this email
+    let existingAuthUser: { id: string; email_confirmed_at: string | null } | null = null;
+    let page = 1;
+    const perPage = 50;
+    while (true) {
+      const { data: { users }, error: listErr } =
+        await serviceClient.auth.admin.listUsers({ page, perPage });
+      if (listErr || !users || users.length === 0) break;
+
+      const match = users.find((u) => u.email === email);
+      if (match) {
+        existingAuthUser = {
+          id: match.id,
+          email_confirmed_at: match.email_confirmed_at ?? null,
+        };
+        break;
+      }
+      if (users.length < perPage) break;
+      page++;
+    }
+
+    if (existingAuthUser?.email_confirmed_at) {
+      // ── Case 3: Confirmed user — already has an account ──
+      // Auto-accept: create membership directly, mark invitation accepted.
+      const { error: memberError } = await serviceClient
+        .from("tenant_memberships")
+        .insert({
+          tenant_id: tenantId,
+          user_id: existingAuthUser.id,
+          role,
+          client_id: clientId || null,
+        });
+
+      if (memberError) {
+        console.error("Auto-accept membership error:", memberError);
+        return new Response(JSON.stringify({ error: "internal_error" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await serviceClient
+        .from("invitations")
+        .update({ status: "accepted" })
+        .eq("id", invitation.id);
+
+      return new Response(JSON.stringify({
+        ...invitation,
+        status: "accepted",
+        autoAccepted: true,
+      }), {
+        status: 201,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (existingAuthUser && !existingAuthUser.email_confirmed_at) {
+      // ── Case 2: Unconfirmed stale auth user from a previous invite ──
+      // Delete it so inviteUserByEmail can create a fresh one.
+      await serviceClient.auth.admin.deleteUser(existingAuthUser.id);
+    }
+
+    // ── Case 1 (new user) or Case 2 after cleanup ──
+    // Send invitation email via Supabase Auth
+    const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
       redirectTo,
       data: { invitation_id: invitation.id },
     });
 
-    // If inviteUserByEmail fails (e.g. "User already registered"), check if
-    // there's a stale unconfirmed auth user from a previous invite and retry.
     if (inviteError) {
-      console.error("inviteUserByEmail failed:", inviteError.message);
-
-      // Search for the existing auth user by email using paginated admin API
-      let staleUserId: string | null = null;
-      let page = 1;
-      const perPage = 50;
-      while (!staleUserId) {
-        const { data: { users }, error: listErr } =
-          await serviceClient.auth.admin.listUsers({ page, perPage });
-        if (listErr || !users || users.length === 0) break;
-
-        const match = users.find(
-          (u) => u.email === email && !u.email_confirmed_at
-        );
-        if (match) {
-          staleUserId = match.id;
-          break;
-        }
-        if (users.length < perPage) break;
-        page++;
-      }
-
-      if (staleUserId) {
-        // Delete the unconfirmed auth user so we can re-invite
-        await serviceClient.auth.admin.deleteUser(staleUserId);
-
-        // Retry the invite
-        const retry = await serviceClient.auth.admin.inviteUserByEmail(email, {
-          redirectTo,
-          data: { invitation_id: invitation.id },
-        });
-        inviteError = retry.error;
-      }
-    }
-
-    if (inviteError) {
-      console.error("Invite email error after retry:", inviteError);
+      console.error("Invite email error:", inviteError);
       return new Response(JSON.stringify({
         ...invitation,
         warning: `Invitation created but email failed: ${inviteError.message}`,

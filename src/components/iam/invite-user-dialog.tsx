@@ -97,7 +97,9 @@ export function InviteUserDialog({ defaultTenantId, onSuccess }: InviteUserDialo
       return response.json();
     },
     onSuccess: (data) => {
-      if (data?.warning) {
+      if (data?.autoAccepted) {
+        toast.success(`${email} already has an account — added to tenant directly.`);
+      } else if (data?.warning) {
         toast.warning(data.warning);
       } else {
         toast.success(`Invitation sent to ${email}`);
