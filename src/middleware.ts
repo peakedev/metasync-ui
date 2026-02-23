@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Public routes that don't require authentication
-  const publicRoutes = ["/login", "/invite/accept", "/invite/accept-owner", "/auth/callback", "/login/reset", "/login/update-password"];
+  const publicRoutes = ["/login", "/auth/callback", "/login/reset", "/login/update-password"];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   if (!user && !isPublicRoute) {
@@ -69,7 +69,6 @@ export async function middleware(request: NextRequest) {
       !pathname.startsWith("/owner") &&
       !pathname.startsWith("/login") &&
       !pathname.startsWith("/auth") &&
-      !pathname.startsWith("/invite") &&
       !pathname.startsWith("/403")
     ) {
       const slug = tenantMatch[1];

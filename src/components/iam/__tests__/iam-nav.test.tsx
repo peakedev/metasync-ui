@@ -16,12 +16,11 @@ vi.mock("next/link", () => ({
 }));
 
 describe("IAMNav", () => {
-  it("renders all three tabs", () => {
+  it("renders both tabs", () => {
     mockPathname.mockReturnValue("/owner/iam/users");
     render(<IAMNav />);
 
     expect(screen.getByText("Users")).toBeInTheDocument();
-    expect(screen.getByText("Invitations")).toBeInTheDocument();
     expect(screen.getByText("Owners")).toBeInTheDocument();
   });
 
@@ -31,14 +30,6 @@ describe("IAMNav", () => {
 
     const usersLink = screen.getByText("Users");
     expect(usersLink.className).toContain("border-primary");
-  });
-
-  it("highlights Invitations tab on /owner/iam/invitations", () => {
-    mockPathname.mockReturnValue("/owner/iam/invitations");
-    render(<IAMNav />);
-
-    const invitationsLink = screen.getByText("Invitations");
-    expect(invitationsLink.className).toContain("border-primary");
   });
 
   it("highlights Owners tab on /owner/iam/owners", () => {

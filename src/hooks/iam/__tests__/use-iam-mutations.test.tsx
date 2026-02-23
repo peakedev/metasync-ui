@@ -5,23 +5,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock supabase
 const mockFrom = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-const mockEq = vi.fn();
-const mockGetSession = vi.fn();
-const mockFetch = vi.fn();
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: (...args: unknown[]) => mockFrom(...args),
-    auth: {
-      getSession: () => mockGetSession(),
-    },
   },
 }));
-
-// Mock global fetch for edge function calls
-vi.stubGlobal("fetch", mockFetch);
 
 import { useIAMMutations } from "../use-iam-mutations";
 
@@ -131,59 +120,6 @@ describe("useIAMMutations", () => {
       });
 
       expect(result.current.changeRole.error?.message).toContain("last_admin_demotion");
-    });
-  });
-
-  describe("revokeInvitation", () => {
-    it("updates invitation status to expired", async () => {
-      const eqResult = { eq: vi.fn().mockResolvedValue({ error: null }) };
-      mockFrom.mockReturnValue({
-        update: vi.fn().mockReturnValue(eqResult),
-      });
-
-      const { result } = renderHook(() => useIAMMutations(), {
-        wrapper: createWrapper(),
-      });
-
-      await act(async () => {
-        result.current.revokeInvitation.mutate({ invitationId: "inv-1" });
-      });
-
-      await waitFor(() => {
-        expect(result.current.revokeInvitation.isSuccess).toBe(true);
-      });
-
-      expect(mockFrom).toHaveBeenCalledWith("invitations");
-      const updateCall = mockFrom.mock.results[0].value.update;
-      expect(updateCall).toHaveBeenCalledWith({ status: "expired" });
-    });
-  });
-
-  describe("resendInvitation", () => {
-    it("handles 429 too_many_requests response", async () => {
-      mockGetSession.mockResolvedValue({
-        data: { session: { access_token: "test-token" } },
-      });
-
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 429,
-        json: async () => ({ error: "too_many_requests" }),
-      });
-
-      const { result } = renderHook(() => useIAMMutations(), {
-        wrapper: createWrapper(),
-      });
-
-      await act(async () => {
-        result.current.resendInvitation.mutate({ invitationId: "inv-1" });
-      });
-
-      await waitFor(() => {
-        expect(result.current.resendInvitation.isError).toBe(true);
-      });
-
-      expect(result.current.resendInvitation.error?.message).toBe("too_many_requests");
     });
   });
 

@@ -28,7 +28,6 @@ import {
   User,
   Key,
   ShieldCheck,
-  Mail,
   Crown,
 } from "lucide-react";
 
@@ -43,7 +42,6 @@ function getNavItems(claims: AppClaims, tenantSlug?: string): NavItem[] {
     return [
       { href: "/owner/tenants", label: "Tenants", icon: <Building2 className="h-4 w-4" /> },
       { href: "/owner/iam/users", label: "Users", icon: <Users className="h-4 w-4" /> },
-      { href: "/owner/iam/invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
       { href: "/owner/iam/owners", label: "Owners", icon: <Crown className="h-4 w-4" /> },
     ];
   }
@@ -98,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Extract tenant slug from path
   const pathParts = pathname.split("/").filter(Boolean);
   const tenantSlug =
-    pathParts[0] !== "owner" && pathParts[0] !== "auth" && pathParts[0] !== "login" && pathParts[0] !== "invite" && pathParts[0] !== "403"
+    pathParts[0] !== "owner" && pathParts[0] !== "auth" && pathParts[0] !== "login" && pathParts[0] !== "403"
       ? pathParts[0]
       : undefined;
 

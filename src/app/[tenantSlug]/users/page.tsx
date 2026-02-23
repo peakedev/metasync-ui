@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/hooks/use-tenant";
+import { generatePassword } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,18 +13,23 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Copy, Check, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function UsersPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { data: tenant } = useTenant(tenantSlug);
   const queryClient = useQueryClient();
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteClientId, setInviteClientId] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createClientId, setCreateClientId] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Post-creation state
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["tenant-members", tenant?.id],
@@ -45,24 +51,42 @@ export default function UsersPage() {
     enabled: !!tenant,
   });
 
-  const { data: invitations = [] } = useQuery({
-    queryKey: ["tenant-invitations", tenant?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("invitations").select("*").eq("tenant_id", tenant!.id).eq("status", "pending");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenant,
-  });
+  const createMutation = useMutation({
+    mutationFn: async ({ password }: { password: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
 
-  const inviteMutation = useMutation({
-    mutationFn: async () => {
-      const response = await supabase.functions.invoke("invite", {
-        body: { email: inviteEmail, role: "tenant_user", tenantId: tenant!.id, clientId: inviteClientId || undefined },
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-user`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: createEmail,
+          password,
+          role: "tenant_user",
+          tenantId: tenant!.id,
+          clientId: createClientId || null,
+        }),
       });
-      if (response.error) throw new Error(response.error.message);
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
     },
-    onSuccess: () => { setInviteOpen(false); setInviteEmail(""); setInviteClientId(""); queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] }); toast.success("Invitation sent"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenant-members"] });
+      toast.success(`User account created for ${createEmail}`);
+    },
+    onError: (err) => {
+      setCreateError(err.message);
+    },
   });
 
   const assignMutation = useMutation({
@@ -81,21 +105,45 @@ export default function UsersPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tenant-members"] }); toast.success("User removed"); },
   });
 
-  const revokeMutation = useMutation({
-    mutationFn: async (invId: string) => {
-      const { error } = await supabase.from("invitations").update({ status: "expired" }).eq("id", invId);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tenant-invitations"] }); toast.success("Invitation revoked"); },
-  });
+  function resetCreateForm() {
+    setCreateEmail("");
+    setCreateClientId("");
+    setCreateError(null);
+    setCreatedPassword(null);
+    setCopied(false);
+    setShowPassword(false);
+  }
+
+  function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    const password = generatePassword();
+    setCreatedPassword(password);
+    createMutation.mutate({ password });
+  }
+
+  function handleCopy() {
+    if (!createdPassword) return;
+    navigator.clipboard.writeText(createdPassword);
+    setCopied(true);
+    toast.success("Password copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleCloseCreate() {
+    setCreateOpen(false);
+    resetCreateForm();
+  }
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>;
+
+  const isCreated = createMutation.isSuccess && createdPassword;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Users</h1>
-        <Button onClick={() => setInviteOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Invite User</Button>
+        <Button onClick={() => setCreateOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Create User</Button>
       </div>
 
       <Table>
@@ -124,45 +172,61 @@ export default function UsersPage() {
         </TableBody>
       </Table>
 
-      {invitations.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Pending Invitations</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Expires</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {invitations.map(inv => (
-                  <TableRow key={inv.id}>
-                    <TableCell>{inv.email}</TableCell>
-                    <TableCell><Badge variant="outline">{inv.role}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground">{new Date(inv.expires_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right"><Button size="sm" variant="ghost" onClick={() => revokeMutation.mutate(inv.id)}>Revoke</Button></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) handleCloseCreate(); else setCreateOpen(true); }}>
         <DialogContent>
-          <form onSubmit={e => { e.preventDefault(); inviteMutation.mutate(); }}>
-            <DialogHeader><DialogTitle>Invite User</DialogTitle><DialogDescription>Invite a new user to this tenant.</DialogDescription></DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2"><Label>Email</Label><Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required /></div>
-              <div className="space-y-2"><Label>Client (optional)</Label>
-                <Select value={inviteClientId} onValueChange={setInviteClientId}>
-                  <SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger>
-                  <SelectContent><SelectItem value="">No client</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
+          {!isCreated ? (
+            <form onSubmit={handleCreateSubmit}>
+              <DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Create a new user account for this tenant with a generated password.</DialogDescription></DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2"><Label>Email</Label><Input type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Client (optional)</Label>
+                  <Select value={createClientId || "none"} onValueChange={v => setCreateClientId(v === "none" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">No client</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                {createError && <p className="text-sm text-destructive">{createError}</p>}
               </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={inviteMutation.isPending}>{inviteMutation.isPending ? "Sending..." : "Send Invitation"}</Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleCloseCreate}>Cancel</Button>
+                <Button type="submit" disabled={createMutation.isPending || !createEmail}>{createMutation.isPending ? "Creating..." : "Create User"}</Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>User Created</DialogTitle>
+                <DialogDescription>
+                  Account created for <strong>{createEmail}</strong>. Copy the generated password below and share it with the user.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Generated Password</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      type={showPassword ? "text" : "password"}
+                      value={createdPassword}
+                      className="font-mono"
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button type="button" variant="outline" size="icon" onClick={handleCopy}>
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This password will not be shown again. Make sure to copy it now.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCloseCreate}>Done</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
