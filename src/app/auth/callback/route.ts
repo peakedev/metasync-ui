@@ -16,8 +16,15 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const cookieStore = await cookies();
-    // Collect cookies so we can set them on the redirect response explicitly.
-    // cookies().set() alone does NOT propagate onto a NextResponse.redirect().
+
+    // Snapshot the PKCE code_verifier BEFORE creating the Supabase client.
+    // _removeSession() during client initialization unconditionally wipes
+    // it as a cleanup side-effect when a stale session exists.
+    const allRequestCookies = cookieStore.getAll();
+    const codeVerifierCookie = allRequestCookies.find(
+      (c) => c.name.endsWith("-auth-token-code-verifier")
+    );
+
     const pendingCookies: { name: string; value: string; options: Record<string, any> }[] = [];
 
     const supabase = createServerClient(
@@ -26,17 +33,17 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            const current = cookieStore.getAll();
+            if (!codeVerifierCookie) return current;
+            const found = current.find(c => c.name === codeVerifierCookie.name);
+            if (found?.value === codeVerifierCookie.value) return current;
+            return [
+              ...current.filter(c => c.name !== codeVerifierCookie.name),
+              codeVerifierCookie,
+            ];
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Don't clear the code_verifier from the cookie store during
-              // this request — _removeSession() wipes it as a side effect
-              // during initialization, but exchangeCodeForSession needs to
-              // read it from getAll() afterward.
-              if (name.endsWith("-code-verifier") && options?.maxAge === 0) {
-                return;
-              }
               cookieStore.set(name, value, options);
             });
             pendingCookies.push(...cookiesToSet);
@@ -46,6 +53,10 @@ export async function GET(request: NextRequest) {
     );
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      console.error("[auth/callback] exchangeCodeForSession failed:", error.message);
+    }
 
     if (!error && data.user) {
       let destination = redirectTo;

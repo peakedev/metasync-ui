@@ -4,6 +4,16 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const { pathname } = request.nextUrl;
+
+  // Auth callback handles its own code exchange. Don't create a Supabase
+  // client here — its async _initialize() would clear the PKCE
+  // code_verifier cookie from request.cookies via _removeSession() before
+  // the route handler gets to read it.
+  if (pathname.startsWith("/auth/callback")) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,15 +34,6 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-
-  const { pathname } = request.nextUrl;
-
-  // Auth callback handles its own code exchange. Calling getUser() here
-  // would trigger _removeSession() for stale sessions, which wipes the
-  // PKCE code_verifier cookie before the callback route handler can use it.
-  if (pathname.startsWith("/auth/callback")) {
-    return supabaseResponse;
-  }
 
   const {
     data: { user },
