@@ -83,21 +83,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Fetch invitations by email
-    const { data: invitations, error: invError } = await serviceClient
-      .from("invitations")
-      .select("id, tenant_id, role, client_id, status, expires_at, created_at, updated_at, invited_by, email, tenants(id, name), clients(id, name)")
-      .eq("email", targetUser.email || "")
-      .order("created_at", { ascending: false });
-
-    if (invError) {
-      console.error("Query invitations error:", invError);
-      return new Response(JSON.stringify({ error: "internal_error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Determine provider
     const provider = targetUser.app_metadata?.provider ||
       (targetUser.identities?.[0]?.provider) || "email";
@@ -117,20 +102,6 @@ Deno.serve(async (req: Request) => {
         clientId: m.client_id,
         clientName: m.clients?.name || null,
         createdAt: m.created_at,
-      })),
-      invitations: (invitations || []).map((inv: any) => ({
-        id: inv.id,
-        tenantId: inv.tenants?.id || inv.tenant_id,
-        tenantName: inv.tenants?.name || "",
-        role: inv.role,
-        clientId: inv.client_id,
-        clientName: inv.clients?.name || null,
-        status: inv.status,
-        expiresAt: inv.expires_at,
-        createdAt: inv.created_at,
-        updatedAt: inv.updated_at,
-        invitedBy: inv.invited_by,
-        email: inv.email,
       })),
     };
 
