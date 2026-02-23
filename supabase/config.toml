@@ -383,8 +383,6 @@ verify_jwt = false
 [functions.create-user]
 verify_jwt = false
 
-[functions.store-secret]
-verify_jwt = false
 
 [edge_runtime]
 enabled = true

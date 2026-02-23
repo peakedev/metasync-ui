@@ -76,11 +76,25 @@ Deno.serve(async (req: Request) => {
     let secretName: string;
     if (claims.user_role === "tenant_admin" || claims.user_role === "owner") {
       secretName = `tenant_${tenantId}_admin_key`;
-    } else if (claims.client_id) {
-      secretName = `client_${claims.client_id}_api_key`;
+    } else if (body.clientId) {
+      // Validate that this user is assigned to the requested client
+      const { data: assignment } = await serviceClient
+        .from("user_client_assignments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("client_id", body.clientId)
+        .single();
+
+      if (!assignment) {
+        return new Response(JSON.stringify({ error: "client_not_assigned" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      secretName = `client_${body.clientId}_api_key`;
     } else {
       return new Response(JSON.stringify({ error: "no_client" }), {
-        status: 403,
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSession, type AppClaims } from "@/hooks/use-session";
+import { useClientContext } from "@/contexts/client-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +11,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import {
@@ -27,8 +35,8 @@ import {
   LogOut,
   User,
   Key,
-  ShieldCheck,
   Crown,
+  Monitor,
 } from "lucide-react";
 
 interface NavItem {
@@ -37,7 +45,7 @@ interface NavItem {
   icon: React.ReactNode;
 }
 
-function getNavItems(claims: AppClaims, tenantSlug?: string): NavItem[] {
+function getNavItems(claims: AppClaims, tenantSlug?: string, hasClient?: boolean): NavItem[] {
   if (claims.user_role === "owner") {
     return [
       { href: "/owner/tenants", label: "Tenants", icon: <Building2 className="h-4 w-4" /> },
@@ -62,7 +70,7 @@ function getNavItems(claims: AppClaims, tenantSlug?: string): NavItem[] {
     );
   }
 
-  if (claims.client_id || claims.user_role === "tenant_admin") {
+  if (hasClient || claims.user_role === "tenant_admin") {
     items.push(
       { href: `${base}/prompts`, label: "Prompts", icon: <FileText className="h-4 w-4" /> },
       { href: `${base}/prompt-flows`, label: "Flows", icon: <GitBranch className="h-4 w-4" /> },
@@ -80,6 +88,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, claims, loading } = useSession();
+  const {
+    selectedClientId,
+    setSelectedClientId,
+    availableClients,
+  } = useClientContext();
 
   if (loading) {
     return (
@@ -100,12 +113,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ? pathParts[0]
       : undefined;
 
-  const navItems = getNavItems(claims, tenantSlug);
+  const hasClient = claims.user_role === "tenant_admin" || !!selectedClientId;
+  const navItems = getNavItems(claims, tenantSlug, hasClient);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.push("/login");
   }
+
+  const showClientSelector =
+    claims.user_role === "tenant_user" && availableClients.length > 0;
 
   return (
     <div className="flex min-h-screen">
@@ -116,6 +133,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             MetaSync UI
           </Link>
         </div>
+
+        {showClientSelector && (
+          <div className="border-b px-3 py-3">
+            <Select
+              value={selectedClientId ?? ""}
+              onValueChange={(v) => setSelectedClientId(v || null)}
+            >
+              <SelectTrigger className="w-full">
+                <Monitor className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Select client" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <nav className="space-y-1 p-2">
           {navItems.map((item) => (
             <Link

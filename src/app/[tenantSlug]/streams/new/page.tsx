@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { useStreamProxy } from "@/hooks/use-stream-proxy";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
+import { useClientContext } from "@/contexts/client-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +17,7 @@ interface Model { _id: string; name: string; }
 export default function ChatPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { data: tenant } = useTenant(tenantSlug);
+  const { selectedClientId } = useClientContext();
   const [model, setModel] = useState("");
   const [temperature, setTemperature] = useState(0.7);
   const [input, setInput] = useState("");
@@ -23,7 +25,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: models } = useMetaSyncProxy<Model[]>({ path: "/models", tenantSlug });
-  const { messages, state, error, send, isStreaming } = useStreamProxy({ tenantId: tenant?.id || "", model, temperature });
+  const { messages, state, error, send, isStreaming } = useStreamProxy({ tenantId: tenant?.id || "", clientId: selectedClientId, model, temperature });
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 

@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserPlus, Trash2, Copy, Check, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Trash2, Copy, Check, Eye, EyeOff, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 export default function UsersPage() {
@@ -26,7 +26,6 @@ export default function UsersPage() {
   const [createClientId, setCreateClientId] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Post-creation state
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -50,6 +49,29 @@ export default function UsersPage() {
     },
     enabled: !!tenant,
   });
+
+  // Fetch all user_client_assignments for this tenant's clients
+  const clientIds = clients.map((c) => c.id);
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["tenant-client-assignments", tenant?.id],
+    queryFn: async () => {
+      if (clientIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("user_client_assignments")
+        .select("user_id, client_id")
+        .in("client_id", clientIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenant && clientIds.length > 0,
+  });
+
+  // Map: userId -> set of assigned clientIds
+  const userAssignments: Record<string, string[]> = {};
+  for (const a of assignments) {
+    if (!userAssignments[a.user_id]) userAssignments[a.user_id] = [];
+    userAssignments[a.user_id].push(a.client_id);
+  }
 
   const createMutation = useMutation({
     mutationFn: async ({ password }: { password: string }) => {
@@ -82,6 +104,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-members"] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
       toast.success(`User account created for ${createEmail}`);
     },
     onError: (err) => {
@@ -90,11 +113,31 @@ export default function UsersPage() {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async ({ userId, clientId }: { userId: string; clientId: string | null }) => {
-      const { error } = await supabase.from("tenant_memberships").update({ client_id: clientId }).eq("user_id", userId).eq("tenant_id", tenant!.id);
+    mutationFn: async ({ userId, clientId }: { userId: string; clientId: string }) => {
+      const { error } = await supabase
+        .from("user_client_assignments")
+        .insert({ user_id: userId, client_id: clientId });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tenant-members"] }); toast.success("Assignment updated"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
+      toast.success("Client assigned");
+    },
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: async ({ userId, clientId }: { userId: string; clientId: string }) => {
+      const { error } = await supabase
+        .from("user_client_assignments")
+        .delete()
+        .eq("user_id", userId)
+        .eq("client_id", clientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
+      toast.success("Client unassigned");
+    },
   });
 
   const removeMutation = useMutation({
@@ -102,7 +145,11 @@ export default function UsersPage() {
       const { error } = await supabase.from("tenant_memberships").delete().eq("user_id", userId).eq("tenant_id", tenant!.id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tenant-members"] }); toast.success("User removed"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenant-members"] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
+      toast.success("User removed");
+    },
   });
 
   function resetCreateForm() {
@@ -148,27 +195,64 @@ export default function UsersPage() {
 
       <Table>
         <TableHeader>
-          <TableRow><TableHead>User ID</TableHead><TableHead>Role</TableHead><TableHead>Client</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+          <TableRow><TableHead>User ID</TableHead><TableHead>Role</TableHead><TableHead>Clients</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
         </TableHeader>
         <TableBody>
-          {members.map(m => (
-            <TableRow key={m.id}>
-              <TableCell className="font-mono text-sm">{m.user_id}</TableCell>
-              <TableCell><Badge variant="outline">{m.role}</Badge></TableCell>
-              <TableCell>
-                <Select value={m.client_id || "unassigned"} onValueChange={v => assignMutation.mutate({ userId: m.user_id, clientId: v === "unassigned" ? null : v })}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell className="text-right">
-                <Button size="sm" variant="ghost" onClick={() => { if (confirm("Remove this user?")) removeMutation.mutate(m.user_id); }}><Trash2 className="h-4 w-4" /></Button>
-              </TableCell>
-            </TableRow>
-          ))}
+          {members.map(m => {
+            const assigned = userAssignments[m.user_id] || [];
+            const assignedSet = new Set(assigned);
+            const unassigned = clients.filter((c) => !assignedSet.has(c.id));
+
+            return (
+              <TableRow key={m.id}>
+                <TableCell className="font-mono text-sm">{m.user_id}</TableCell>
+                <TableCell><Badge variant="outline">{m.role}</Badge></TableCell>
+                <TableCell>
+                  {m.role === "tenant_admin" ? (
+                    <Badge variant="secondary">Admin key</Badge>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {assigned.map((cid) => {
+                        const client = clients.find((c) => c.id === cid);
+                        return (
+                          <Badge key={cid} variant="secondary" className="gap-1 pr-1">
+                            {client?.name || cid}
+                            <button
+                              onClick={() => unassignMutation.mutate({ userId: m.user_id, clientId: cid })}
+                              className="ml-1 rounded-sm p-0.5 hover:bg-muted"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                      {assigned.length === 0 && (
+                        <span className="text-sm text-muted-foreground">No clients</span>
+                      )}
+                      {unassigned.length > 0 && (
+                        <Select
+                          value=""
+                          onValueChange={(v) => assignMutation.mutate({ userId: m.user_id, clientId: v })}
+                        >
+                          <SelectTrigger className="h-7 w-7 p-0 border-dashed" size="sm">
+                            <Plus className="h-3 w-3" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {unassigned.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button size="sm" variant="ghost" onClick={() => { if (confirm("Remove this user?")) removeMutation.mutate(m.user_id); }}><Trash2 className="h-4 w-4" /></Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 
@@ -179,7 +263,7 @@ export default function UsersPage() {
               <DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Create a new user account for this tenant with a generated password.</DialogDescription></DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2"><Label>Email</Label><Input type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>Client (optional)</Label>
+                <div className="space-y-2"><Label>Initial Client (optional)</Label>
                   <Select value={createClientId || "none"} onValueChange={v => setCreateClientId(v === "none" ? "" : v)}>
                     <SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger>
                     <SelectContent><SelectItem value="none">No client</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>

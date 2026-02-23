@@ -75,7 +75,6 @@ describe("useSession", () => {
       app_metadata: {
         user_role: "tenant_admin",
         tenant_id: "t-2",
-        client_id: "c-1",
       },
     };
     const fakeSession = { user: fakeUser };
@@ -93,7 +92,6 @@ describe("useSession", () => {
     expect(result.current.claims).toEqual({
       user_role: "tenant_admin",
       tenant_id: "t-2",
-      client_id: "c-1",
     });
   });
 

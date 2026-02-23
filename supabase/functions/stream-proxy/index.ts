@@ -32,6 +32,7 @@ Deno.serve(async (req: Request) => {
     const claims = user.app_metadata;
     const url = new URL(req.url);
     const tenantId = url.searchParams.get("tenantId");
+    const clientId = url.searchParams.get("clientId");
     const model = url.searchParams.get("model");
     const temperature = url.searchParams.get("temperature");
     const userPrompt = url.searchParams.get("userPrompt");
@@ -75,11 +76,25 @@ Deno.serve(async (req: Request) => {
     let secretName: string;
     if (claims.user_role === "tenant_admin" || claims.user_role === "owner") {
       secretName = `tenant_${tenantId}_admin_key`;
-    } else if (claims.client_id) {
-      secretName = `client_${claims.client_id}_api_key`;
+    } else if (clientId) {
+      // Validate that this user is assigned to the requested client
+      const { data: assignment } = await serviceClient
+        .from("user_client_assignments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("client_id", clientId)
+        .single();
+
+      if (!assignment) {
+        return new Response(JSON.stringify({ error: "client_not_assigned" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      secretName = `client_${clientId}_api_key`;
     } else {
       return new Response(JSON.stringify({ error: "no_client" }), {
-        status: 403,
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

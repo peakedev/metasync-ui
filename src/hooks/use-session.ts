@@ -7,7 +7,6 @@ import type { User, Session } from "@supabase/supabase-js";
 export interface AppClaims {
   user_role?: "owner" | "tenant_admin" | "tenant_user";
   tenant_id?: string | null;
-  client_id?: string | null;
 }
 
 export function useSession() {

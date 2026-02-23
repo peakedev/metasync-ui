@@ -16,15 +16,9 @@ export function useIAMMutations() {
       userId: string;
       newRole: "tenant_admin" | "tenant_user";
     }) => {
-      const updatePayload: Record<string, unknown> = { role: newRole };
-      // Promoting to tenant_admin: clear client_id (admins use admin key)
-      if (newRole === "tenant_admin") {
-        updatePayload.client_id = null;
-      }
-
       const { error } = await supabase
         .from("tenant_memberships")
-        .update(updatePayload)
+        .update({ role: newRole })
         .eq("tenant_id", tenantId)
         .eq("user_id", userId);
 
@@ -36,27 +30,47 @@ export function useIAMMutations() {
     },
   });
 
-  const reassignClient = useMutation({
+  const assignClient = useMutation({
     mutationFn: async ({
-      tenantId,
       userId,
       clientId,
     }: {
-      tenantId: string;
       userId: string;
-      clientId: string | null;
+      clientId: string;
     }) => {
       const { error } = await supabase
-        .from("tenant_memberships")
-        .update({ client_id: clientId })
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId);
+        .from("user_client_assignments")
+        .insert({ user_id: userId, client_id: clientId });
 
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["iam-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-detail", variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ["user-client-assignments", variables.userId] });
+    },
+  });
+
+  const unassignClient = useMutation({
+    mutationFn: async ({
+      userId,
+      clientId,
+    }: {
+      userId: string;
+      clientId: string;
+    }) => {
+      const { error } = await supabase
+        .from("user_client_assignments")
+        .delete()
+        .eq("user_id", userId)
+        .eq("client_id", clientId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["iam-users"] });
+      queryClient.invalidateQueries({ queryKey: ["user-detail", variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ["user-client-assignments", variables.userId] });
     },
   });
 
@@ -84,7 +98,8 @@ export function useIAMMutations() {
 
   return {
     changeRole,
-    reassignClient,
+    assignClient,
+    unassignClient,
     removeMembership,
   };
 }

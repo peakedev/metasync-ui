@@ -26,17 +26,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Trash2 } from "lucide-react";
+import { Trash2, X, Plus } from "lucide-react";
 import type { MembershipDetail } from "@/types/iam";
 
 interface MembershipRowProps {
   membership: MembershipDetail;
   isLastAdmin: boolean;
   onChangeRole: (newRole: "tenant_admin" | "tenant_user") => void;
-  onReassignClient: (clientId: string | null) => void;
+  onAssignClient: (clientId: string) => void;
+  onUnassignClient: (clientId: string) => void;
   onRemove: () => void;
   isChangingRole?: boolean;
-  isReassigning?: boolean;
+  isAssigning?: boolean;
   isRemoving?: boolean;
 }
 
@@ -44,15 +45,16 @@ export function MembershipRow({
   membership,
   isLastAdmin,
   onChangeRole,
-  onReassignClient,
+  onAssignClient,
+  onUnassignClient,
   onRemove,
   isChangingRole,
-  isReassigning,
+  isAssigning,
   isRemoving,
 }: MembershipRowProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const { data: clients = [] } = useQuery({
+  const { data: allClients = [] } = useQuery({
     queryKey: ["clients", membership.tenantId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -67,86 +69,112 @@ export function MembershipRow({
     enabled: membership.role === "tenant_user",
   });
 
+  const assignedIds = new Set(membership.clients.map((c) => c.clientId));
+  const unassignedClients = allClients.filter((c) => !assignedIds.has(c.id));
+
   return (
-    <div className="flex items-center gap-4 rounded-lg border p-4">
-      <div className="flex-1 space-y-1">
-        <div className="font-medium">{membership.tenantName}</div>
-        <div className="text-sm text-muted-foreground">
-          Since {new Date(membership.createdAt).toLocaleDateString()}
+    <div className="rounded-lg border p-4 space-y-3">
+      <div className="flex items-center gap-4">
+        <div className="flex-1 space-y-1">
+          <div className="font-medium">{membership.tenantName}</div>
+          <div className="text-sm text-muted-foreground">
+            Since {new Date(membership.createdAt).toLocaleDateString()}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Role selector */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Select
+                    value={membership.role}
+                    onValueChange={(v) => onChangeRole(v as "tenant_admin" | "tenant_user")}
+                    disabled={isLastAdmin || isChangingRole}
+                  >
+                    <SelectTrigger className="w-36" size="sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tenant_admin">Admin</SelectItem>
+                      <SelectItem value="tenant_user">User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TooltipTrigger>
+              {isLastAdmin && (
+                <TooltipContent>Last admin — cannot demote or remove</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
+          {membership.role === "tenant_admin" && (
+            <Badge variant="secondary" className="w-40 justify-center">Admin key</Badge>
+          )}
+
+          {/* Remove button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isLastAdmin || isRemoving}
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              {isLastAdmin && (
+                <TooltipContent>Last admin — cannot remove</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Role selector */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <Select
-                  value={membership.role}
-                  onValueChange={(v) => onChangeRole(v as "tenant_admin" | "tenant_user")}
-                  disabled={isLastAdmin || isChangingRole}
+      {/* Client assignments (tenant_user only) */}
+      {membership.role === "tenant_user" && (
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-muted-foreground">Assigned clients</div>
+          <div className="flex flex-wrap gap-2">
+            {membership.clients.map((c) => (
+              <Badge key={c.clientId} variant="secondary" className="gap-1 pr-1">
+                {c.clientName}
+                <button
+                  onClick={() => onUnassignClient(c.clientId)}
+                  className="ml-1 rounded-sm p-0.5 hover:bg-muted"
                 >
-                  <SelectTrigger className="w-36" size="sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tenant_admin">Admin</SelectItem>
-                    <SelectItem value="tenant_user">User</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </TooltipTrigger>
-            {isLastAdmin && (
-              <TooltipContent>Last admin — cannot demote or remove</TooltipContent>
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            {membership.clients.length === 0 && (
+              <span className="text-sm text-muted-foreground">No clients assigned</span>
             )}
-          </Tooltip>
-        </TooltipProvider>
-
-        {/* Client selector (tenant_user only) */}
-        {membership.role === "tenant_user" && (
-          <Select
-            value={membership.clientId || "unassigned"}
-            onValueChange={(v) => onReassignClient(v === "unassigned" ? null : v)}
-            disabled={isReassigning}
-          >
-            <SelectTrigger className="w-40" size="sm">
-              <SelectValue placeholder="Unassigned" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {membership.role === "tenant_admin" && (
-          <Badge variant="secondary" className="w-40 justify-center">Admin key</Badge>
-        )}
-
-        {/* Remove button */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={isLastAdmin || isRemoving}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </TooltipTrigger>
-            {isLastAdmin && (
-              <TooltipContent>Last admin — cannot remove</TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+          </div>
+          {unassignedClients.length > 0 && (
+            <Select
+              value=""
+              onValueChange={(clientId) => onAssignClient(clientId)}
+              disabled={isAssigning}
+            >
+              <SelectTrigger className="w-52" size="sm">
+                <Plus className="mr-1 h-3 w-3" />
+                <SelectValue placeholder="Add client" />
+              </SelectTrigger>
+              <SelectContent>
+                {unassignedClients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
 
       {/* Confirmation dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

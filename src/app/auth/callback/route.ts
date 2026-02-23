@@ -77,6 +77,10 @@ export async function GET(request: NextRequest) {
           if (tenant) {
             destination = `/${tenant.slug}/dashboard`;
           }
+        } else {
+          // No role/tenant in claims — send to root page which shows a
+          // helpful error with a sign-out option instead of looping.
+          destination = "/";
         }
       }
 

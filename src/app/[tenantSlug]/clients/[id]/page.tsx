@@ -41,13 +41,13 @@ export default function ClientDetailPage() {
     tenantSlug,
   });
 
-  // Users assigned to this client
+  // Users assigned to this client (from junction table)
   const { data: assignedUsers = [] } = useQuery({
     queryKey: ["client-users", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("tenant_memberships")
-        .select("*")
+        .from("user_client_assignments")
+        .select("id, user_id, client_id")
         .eq("client_id", id);
       if (error) throw error;
       return data;
@@ -55,18 +55,25 @@ export default function ClientDetailPage() {
     enabled: !!tenant,
   });
 
-  // All tenant users without client assignment
+  // All tenant users (tenant_user role) who are NOT assigned to this client
   const { data: unassignedUsers = [] } = useQuery({
-    queryKey: ["unassigned-users", tenant?.id],
+    queryKey: ["unassigned-users", tenant?.id, id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: members, error: memErr } = await supabase
         .from("tenant_memberships")
-        .select("*")
+        .select("user_id")
         .eq("tenant_id", tenant!.id)
-        .eq("role", "tenant_user")
-        .is("client_id", null);
-      if (error) throw error;
-      return data;
+        .eq("role", "tenant_user");
+      if (memErr) throw memErr;
+
+      const { data: assigned, error: assErr } = await supabase
+        .from("user_client_assignments")
+        .select("user_id")
+        .eq("client_id", id);
+      if (assErr) throw assErr;
+
+      const assignedIds = new Set((assigned || []).map((a) => a.user_id));
+      return (members || []).filter((m) => !assignedIds.has(m.user_id));
     },
     enabled: !!tenant,
   });
@@ -99,15 +106,13 @@ export default function ClientDetailPage() {
   const assignMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase
-        .from("tenant_memberships")
-        .update({ client_id: id })
-        .eq("user_id", userId)
-        .eq("tenant_id", tenant!.id);
+        .from("user_client_assignments")
+        .insert({ user_id: userId, client_id: id });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-users", id] });
-      queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id, id] });
       toast.success("User assigned");
     },
   });
@@ -115,15 +120,15 @@ export default function ClientDetailPage() {
   const unassignMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase
-        .from("tenant_memberships")
-        .update({ client_id: null })
+        .from("user_client_assignments")
+        .delete()
         .eq("user_id", userId)
-        .eq("tenant_id", tenant!.id);
+        .eq("client_id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-users", id] });
-      queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id, id] });
       toast.success("User unassigned");
     },
   });
@@ -208,14 +213,13 @@ export default function ClientDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Assigned Users</CardTitle>
-          <CardDescription>Users operating under this client&apos;s API key</CardDescription>
+          <CardDescription>Users operating under this client&apos;s API key. A user can be assigned to multiple clients.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>User ID</TableHead>
-                <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -223,7 +227,6 @@ export default function ClientDetailPage() {
               {assignedUsers.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-mono text-sm">{u.user_id}</TableCell>
-                  <TableCell>{u.role}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="ghost" onClick={() => unassignMutation.mutate(u.user_id)}>
                       Unassign
@@ -233,7 +236,7 @@ export default function ClientDetailPage() {
               ))}
               {assignedUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={2} className="text-center text-muted-foreground py-6">
                     No users assigned.
                   </TableCell>
                 </TableRow>
@@ -243,14 +246,14 @@ export default function ClientDetailPage() {
 
           {unassignedUsers.length > 0 && (
             <div className="mt-4 space-y-2">
-              <Label>Assign unassigned user</Label>
+              <Label>Assign a tenant user</Label>
               <Select onValueChange={(userId) => assignMutation.mutate(userId)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a user to assign" />
                 </SelectTrigger>
                 <SelectContent>
                   {unassignedUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.user_id}>
+                    <SelectItem key={u.user_id} value={u.user_id}>
                       {u.user_id}
                     </SelectItem>
                   ))}

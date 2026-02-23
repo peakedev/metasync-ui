@@ -81,19 +81,6 @@ export async function middleware(request: NextRequest) {
           url.pathname = "/403";
           return NextResponse.redirect(url);
         }
-
-        // Tenant users with no client_id are blocked from operational pages
-        if (claims?.user_role === "tenant_user" && !claims?.client_id) {
-          const operationalPaths = ["/jobs", "/workers", "/streams", "/runs", "/prompts", "/prompt-flows"];
-          const isOperational = operationalPaths.some((p) =>
-            pathname.startsWith(`/${slug}${p}`)
-          );
-          if (isOperational) {
-            const url = request.nextUrl.clone();
-            url.pathname = `/${slug}/dashboard`;
-            return NextResponse.redirect(url);
-          }
-        }
       }
     }
   }

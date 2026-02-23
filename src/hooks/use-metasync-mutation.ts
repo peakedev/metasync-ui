@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient, type UseMutationOptions } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "./use-tenant";
+import { useClientContext } from "@/contexts/client-context";
 
 interface MutationOptions {
   path: string;
@@ -17,18 +18,22 @@ export function useMetaSyncMutation<TBody = unknown, TResponse = unknown>(
 ) {
   const { data: tenant } = useTenant(options.tenantSlug);
   const queryClient = useQueryClient();
+  const { selectedClientId } = useClientContext();
 
   return useMutation<TResponse, Error, TBody>({
     mutationFn: async (body: TBody) => {
       if (!tenant) throw new Error("Tenant not loaded");
 
+      const payload: Record<string, unknown> = {
+        tenantId: tenant.id,
+        path: options.path,
+        method: options.method || "POST",
+        body,
+      };
+      if (selectedClientId) payload.clientId = selectedClientId;
+
       const response = await supabase.functions.invoke("proxy", {
-        body: {
-          tenantId: tenant.id,
-          path: options.path,
-          method: options.method || "POST",
-          body,
-        },
+        body: payload,
       });
 
       if (response.error) {
@@ -38,7 +43,6 @@ export function useMetaSyncMutation<TBody = unknown, TResponse = unknown>(
       return response.data as TResponse;
     },
     onSuccess: (...args) => {
-      // Invalidate specified cache keys
       if (options.invalidateKeys) {
         options.invalidateKeys.forEach((key) => {
           queryClient.invalidateQueries({ queryKey: key });

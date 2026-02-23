@@ -15,7 +15,8 @@ export default function UserDetailPage() {
   const { data, isLoading, error } = useUserDetail(params.userId);
   const {
     changeRole,
-    reassignClient,
+    assignClient,
+    unassignClient,
     removeMembership,
   } = useIAMMutations();
 
@@ -67,9 +68,16 @@ export default function UserDetailPage() {
     );
   }
 
-  function handleReassignClient(tenantId: string, clientId: string | null) {
-    reassignClient.mutate(
-      { tenantId, userId: params.userId, clientId },
+  function handleAssignClient(clientId: string) {
+    assignClient.mutate(
+      { userId: params.userId, clientId },
+      { onError: (err) => toast.error(err.message) }
+    );
+  }
+
+  function handleUnassignClient(clientId: string) {
+    unassignClient.mutate(
+      { userId: params.userId, clientId },
       { onError: (err) => toast.error(err.message) }
     );
   }
@@ -111,10 +119,11 @@ export default function UserDetailPage() {
               membership={m}
               isLastAdmin={m.role === "tenant_admin" && isLastAdminForTenant(m.tenantId)}
               onChangeRole={(newRole) => handleChangeRole(m.tenantId, newRole)}
-              onReassignClient={(clientId) => handleReassignClient(m.tenantId, clientId)}
+              onAssignClient={(clientId) => handleAssignClient(clientId)}
+              onUnassignClient={(clientId) => handleUnassignClient(clientId)}
               onRemove={() => handleRemoveMembership(m.tenantId)}
               isChangingRole={changeRole.isPending}
-              isReassigning={reassignClient.isPending}
+              isAssigning={assignClient.isPending}
               isRemoving={removeMembership.isPending}
             />
           ))

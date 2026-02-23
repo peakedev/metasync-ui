@@ -39,7 +39,7 @@ export function UserDirectoryTable({
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Tenant</TableHead>
-            <TableHead>Client</TableHead>
+            <TableHead>Clients</TableHead>
             <TableHead>Joined</TableHead>
           </TableRow>
         </TableHeader>
@@ -61,8 +61,12 @@ export function UserDirectoryTable({
               </TableCell>
               <TableCell>{member.tenantName}</TableCell>
               <TableCell>
-                {member.clientName ? (
-                  member.clientName
+                {member.clients.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {member.clients.map((c) => (
+                      <Badge key={c.clientId} variant="secondary">{c.clientName}</Badge>
+                    ))}
+                  </div>
                 ) : (
                   <Badge variant="outline">Unassigned</Badge>
                 )}

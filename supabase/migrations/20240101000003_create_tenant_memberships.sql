@@ -4,7 +4,6 @@ CREATE TABLE tenant_memberships (
   tenant_id  uuid        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   user_id    uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role       text        NOT NULL CHECK (role IN ('tenant_admin', 'tenant_user')),
-  client_id  uuid        REFERENCES clients(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, user_id)
 );

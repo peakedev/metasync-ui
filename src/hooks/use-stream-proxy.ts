@@ -18,6 +18,7 @@ type StreamState = "idle" | "streaming" | "done" | "error";
 
 interface StreamParams {
   tenantId: string;
+  clientId?: string | null;
   model: string;
   temperature: number;
   additionalPrompts?: string[];
@@ -59,6 +60,10 @@ export function useStreamProxy(params: StreamParams) {
           temperature: params.temperature.toString(),
           userPrompt,
         });
+
+        if (params.clientId) {
+          searchParams.set("clientId", params.clientId);
+        }
 
         if (params.additionalPrompts) {
           searchParams.set("additionalPrompts", JSON.stringify(params.additionalPrompts));

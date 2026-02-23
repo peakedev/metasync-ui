@@ -33,7 +33,7 @@ describe("useIAMMutations", () => {
   });
 
   describe("changeRole", () => {
-    it("sets client_id to null when promoting to tenant_admin", async () => {
+    it("updates role to tenant_admin", async () => {
       const eqChain = { eq: vi.fn().mockResolvedValue({ error: null }) };
       const updateChain = { eq: vi.fn().mockReturnValue(eqChain) };
       mockFrom.mockReturnValue({
@@ -57,15 +57,11 @@ describe("useIAMMutations", () => {
       });
 
       expect(mockFrom).toHaveBeenCalledWith("tenant_memberships");
-      // Verify the update payload includes client_id: null
       const updateCall = mockFrom.mock.results[0].value.update;
-      expect(updateCall).toHaveBeenCalledWith({
-        role: "tenant_admin",
-        client_id: null,
-      });
+      expect(updateCall).toHaveBeenCalledWith({ role: "tenant_admin" });
     });
 
-    it("does not set client_id when changing to tenant_user", async () => {
+    it("updates role to tenant_user", async () => {
       const eqChain = { eq: vi.fn().mockResolvedValue({ error: null }) };
       const updateChain = { eq: vi.fn().mockReturnValue(eqChain) };
       mockFrom.mockReturnValue({

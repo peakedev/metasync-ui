@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     let query = serviceClient
       .from("tenant_memberships")
       .select(
-        "id, user_id, role, client_id, created_at, tenants(id, name), clients(id, name)",
+        "id, user_id, role, created_at, tenants(id, name)",
         { count: "exact" }
       );
 
@@ -69,11 +69,6 @@ Deno.serve(async (req: Request) => {
     }
     if (role) {
       query = query.eq("role", role);
-    }
-    if (assigned === "true") {
-      query = query.not("client_id", "is", null);
-    } else if (assigned === "false") {
-      query = query.is("client_id", null);
     }
 
     const { data: memberships, error: memError, count } = await query
@@ -88,11 +83,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Collect unique user IDs and fetch emails from Auth Admin API
+    // Collect unique user IDs
     const userIds = [...new Set((memberships || []).map((m: any) => m.user_id))];
-    const emailMap: Record<string, string> = {};
 
-    // Fetch users in batches (Auth Admin API supports up to 1000 per page)
+    // Fetch emails from Auth Admin API
+    const emailMap: Record<string, string> = {};
     if (userIds.length > 0) {
       const { data: { users }, error: usersError } = await serviceClient.auth.admin.listUsers({
         page: 1,
@@ -106,17 +101,40 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Enrich memberships with emails
+    // Fetch client assignments for these users
+    const { data: assignments } = await serviceClient
+      .from("user_client_assignments")
+      .select("user_id, client_id, clients(id, name)")
+      .in("user_id", userIds.length > 0 ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+
+    // Build a map: userId -> array of assigned clients
+    const clientMap: Record<string, Array<{ clientId: string; clientName: string }>> = {};
+    for (const a of assignments || []) {
+      const uid = (a as any).user_id;
+      if (!clientMap[uid]) clientMap[uid] = [];
+      clientMap[uid].push({
+        clientId: (a as any).client_id,
+        clientName: (a as any).clients?.name || "",
+      });
+    }
+
+    // Enrich memberships with emails and client assignments
     let items = (memberships || []).map((m: any) => ({
       userId: m.user_id,
       email: emailMap[m.user_id] || "",
       role: m.role,
       tenantId: m.tenants?.id || "",
       tenantName: m.tenants?.name || "",
-      clientId: m.client_id,
-      clientName: m.clients?.name || null,
+      clients: clientMap[m.user_id] || [],
       membershipCreatedAt: m.created_at,
     }));
+
+    // Filter by assignment status if requested
+    if (assigned === "true") {
+      items = items.filter((item: any) => item.clients.length > 0);
+    } else if (assigned === "false") {
+      items = items.filter((item: any) => item.clients.length === 0);
+    }
 
     // Apply search filter client-side (email prefix)
     if (search) {

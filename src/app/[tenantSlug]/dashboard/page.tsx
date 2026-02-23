@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useSession } from "@/hooks/use-session";
+import { useClientContext } from "@/contexts/client-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { data: tenant, isLoading: tenantLoading } = useTenant(tenantSlug);
   const { claims } = useSession();
+  const { selectedClientId, availableClients } = useClientContext();
   const isAdmin = claims.user_role === "tenant_admin" || claims.user_role === "owner";
 
   const { data: jobSummary, isLoading: jobsLoading, error: jobsError } = useMetaSyncProxy<SummaryData>({
@@ -105,9 +107,15 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Dashboard</h1>
 
-      {claims.user_role === "tenant_user" && !claims.client_id && (
+      {claims.user_role === "tenant_user" && availableClients.length === 0 && (
         <div className="rounded-md border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-          You are not assigned to a client yet. Contact your tenant admin to get access to MetaSync operations.
+          You are not assigned to any client yet. Contact your tenant admin to get access to MetaSync operations.
+        </div>
+      )}
+
+      {claims.user_role === "tenant_user" && availableClients.length > 0 && !selectedClientId && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          You have access to {availableClients.length} client{availableClients.length > 1 ? "s" : ""}. Select a client from the sidebar to start working.
         </div>
       )}
 

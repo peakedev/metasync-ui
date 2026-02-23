@@ -1,11 +1,15 @@
+export interface ClientRef {
+  clientId: string;
+  clientName: string;
+}
+
 export interface IAMMember {
   userId: string;
   email: string;
   role: "tenant_admin" | "tenant_user";
   tenantId: string;
   tenantName: string;
-  clientId: string | null;
-  clientName: string | null;
+  clients: ClientRef[];
   membershipCreatedAt: string;
 }
 
@@ -14,8 +18,7 @@ export interface MembershipDetail {
   tenantId: string;
   tenantName: string;
   role: "tenant_admin" | "tenant_user";
-  clientId: string | null;
-  clientName: string | null;
+  clients: ClientRef[];
   createdAt: string;
 }
 

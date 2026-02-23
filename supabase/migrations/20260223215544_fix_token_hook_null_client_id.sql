@@ -1,7 +1,6 @@
--- Custom Access Token Hook
--- Injects user_role and tenant_id into app_metadata on every JWT issuance/refresh.
--- client_id is NOT in the JWT; client selection is handled at the application layer
--- via the user_client_assignments table.
+-- Update token hook: remove client_id injection.
+-- client_id is now managed via user_client_assignments table and selected at
+-- the application layer, not embedded in the JWT.
 
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
 RETURNS jsonb
@@ -21,7 +20,6 @@ BEGIN
     v_claims := jsonb_set(v_claims, '{app_metadata}', '{}'::jsonb);
   END IF;
 
-  -- Owner: claims already set in app_metadata via admin API; pass through
   IF (v_claims -> 'app_metadata' ->> 'user_role') = 'owner' THEN
     RETURN event;
   END IF;
@@ -40,9 +38,3 @@ BEGIN
   RETURN jsonb_set(event, '{claims}', v_claims);
 END;
 $$;
-
--- Grant necessary permissions for the hook to work
-GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
-GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
-REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon;
-GRANT ALL ON TABLE public.tenant_memberships TO supabase_auth_admin;

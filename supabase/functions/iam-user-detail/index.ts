@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
     // Fetch memberships
     const { data: memberships, error: memError } = await serviceClient
       .from("tenant_memberships")
-      .select("id, tenant_id, role, client_id, created_at, tenants(id, name), clients(id, name)")
+      .select("id, tenant_id, role, created_at, tenants(id, name)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -82,6 +82,17 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Fetch client assignments for this user
+    const { data: assignments } = await serviceClient
+      .from("user_client_assignments")
+      .select("client_id, clients(id, name)")
+      .eq("user_id", userId);
+
+    const clientList = (assignments || []).map((a: any) => ({
+      clientId: a.client_id,
+      clientName: a.clients?.name || "",
+    }));
 
     // Determine provider
     const provider = targetUser.app_metadata?.provider ||
@@ -99,8 +110,7 @@ Deno.serve(async (req: Request) => {
         tenantId: m.tenants?.id || m.tenant_id,
         tenantName: m.tenants?.name || "",
         role: m.role,
-        clientId: m.client_id,
-        clientName: m.clients?.name || null,
+        clients: clientList,
         createdAt: m.created_at,
       })),
     };

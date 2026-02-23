@@ -17,8 +17,7 @@ const mockItems: IAMMember[] = [
     role: "tenant_admin",
     tenantId: "t1",
     tenantName: "Acme Corp",
-    clientId: null,
-    clientName: null,
+    clients: [],
     membershipCreatedAt: "2024-01-15T00:00:00Z",
   },
   {
@@ -27,8 +26,7 @@ const mockItems: IAMMember[] = [
     role: "tenant_user",
     tenantId: "t1",
     tenantName: "Acme Corp",
-    clientId: "c1",
-    clientName: "Client A",
+    clients: [{ clientId: "c1", clientName: "Client A" }],
     membershipCreatedAt: "2024-02-01T00:00:00Z",
   },
   {
@@ -37,8 +35,7 @@ const mockItems: IAMMember[] = [
     role: "tenant_user",
     tenantId: "t1",
     tenantName: "Acme Corp",
-    clientId: null,
-    clientName: null,
+    clients: [],
     membershipCreatedAt: "2024-03-01T00:00:00Z",
   },
 ];
@@ -61,7 +58,7 @@ describe("UserDirectoryTable", () => {
     expect(screen.getByText("Client A")).toBeInTheDocument();
   });
 
-  it("shows 'Unassigned' badge when clientId is null", () => {
+  it("shows 'Unassigned' badge when clients array is empty", () => {
     render(
       <UserDirectoryTable
         items={mockItems}

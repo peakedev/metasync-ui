@@ -109,7 +109,6 @@ Deno.serve(async (req: Request) => {
           app_metadata: {
             user_role: role,
             tenant_id: tenantId,
-            client_id: clientId || null,
           },
         });
 
@@ -146,7 +145,6 @@ Deno.serve(async (req: Request) => {
         tenant_id: tenantId,
         user_id: userId,
         role,
-        client_id: clientId || null,
       });
 
     if (memberError) {
@@ -155,6 +153,17 @@ Deno.serve(async (req: Request) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // If a clientId was provided, create the assignment in the junction table
+    if (clientId) {
+      const { error: assignError } = await serviceClient
+        .from("user_client_assignments")
+        .insert({ user_id: userId, client_id: clientId });
+
+      if (assignError) {
+        console.error("Create client assignment error:", assignError);
+      }
     }
 
     return new Response(JSON.stringify({ success: true, userId }), {
