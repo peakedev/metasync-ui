@@ -359,21 +359,6 @@ allow_dynamic_registration = false
 # Disable relay-level JWT verification for functions that validate JWT internally via getUser().
 # This prevents the Supabase relay from rejecting valid JWTs due to deployment sync issues,
 # while the functions themselves still enforce authentication.
-[functions.invite]
-verify_jwt = false
-
-[functions.invite-owner]
-verify_jwt = false
-
-[functions.complete-signup]
-verify_jwt = false
-
-[functions.complete-owner-signup]
-verify_jwt = false
-
-[functions.resend-invite]
-verify_jwt = false
-
 [functions.iam-users]
 verify_jwt = false
 
@@ -389,7 +374,16 @@ verify_jwt = false
 [functions.stream-proxy]
 verify_jwt = false
 
-[functions.iam-invitations]
+[functions.change-password]
+verify_jwt = false
+
+[functions.create-owner]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.store-secret]
 verify_jwt = false
 
 [edge_runtime]
