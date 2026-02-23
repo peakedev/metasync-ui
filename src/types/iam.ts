@@ -19,21 +19,6 @@ export interface MembershipDetail {
   createdAt: string;
 }
 
-export interface InvitationDetail {
-  id: string;
-  tenantId: string;
-  tenantName: string;
-  role: "tenant_admin" | "tenant_user";
-  clientId: string | null;
-  clientName: string | null;
-  status: "pending" | "accepted" | "expired";
-  expiresAt: string;
-  createdAt: string;
-  updatedAt: string;
-  invitedBy: string;
-  email: string;
-}
-
 export interface IAMAuthUser {
   id: string;
   email: string;
@@ -44,7 +29,6 @@ export interface IAMAuthUser {
 export interface UserDetailResponse {
   user: IAMAuthUser;
   memberships: MembershipDetail[];
-  invitations: InvitationDetail[];
 }
 
 export interface IAMUsersResponse {
@@ -63,9 +47,4 @@ export interface IAMUsersFilters {
   search?: string;
   page?: number;
   pageSize?: number;
-}
-
-export interface IAMInvitationsFilters {
-  tenantId?: string;
-  role?: "tenant_admin" | "tenant_user";
 }

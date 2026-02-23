@@ -6,7 +6,6 @@ import { useUserDetail } from "@/hooks/iam/use-user-detail";
 import { useIAMMutations } from "@/hooks/iam/use-iam-mutations";
 import { UserDetailCard } from "@/components/iam/user-detail-card";
 import { MembershipRow } from "@/components/iam/membership-row";
-import { InvitationRow } from "@/components/iam/invitation-row";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -18,8 +17,6 @@ export default function UserDetailPage() {
     changeRole,
     reassignClient,
     removeMembership,
-    revokeInvitation,
-    resendInvitation,
   } = useIAMMutations();
 
   if (isLoading) {
@@ -93,38 +90,6 @@ export default function UserDetailPage() {
     );
   }
 
-  function handleResend(invitationId: string) {
-    resendInvitation.mutate(
-      { invitationId },
-      {
-        onSuccess: (data) => {
-          if (data?.autoAccepted) {
-            toast.success("User already has an account — added to tenant directly.");
-          } else {
-            toast.success("Invitation resent");
-          }
-        },
-        onError: (err) => {
-          if (err.message === "too_many_requests") {
-            toast.error("Invitation was just resent, please wait");
-          } else {
-            toast.error(err.message);
-          }
-        },
-      }
-    );
-  }
-
-  function handleRevoke(invitationId: string) {
-    revokeInvitation.mutate(
-      { invitationId },
-      {
-        onSuccess: () => toast.success("Invitation revoked"),
-        onError: (err) => toast.error(err.message),
-      }
-    );
-  }
-
   return (
     <div className="space-y-6">
       <Link href="/owner/iam/users" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
@@ -151,25 +116,6 @@ export default function UserDetailPage() {
               isChangingRole={changeRole.isPending}
               isReassigning={reassignClient.isPending}
               isRemoving={removeMembership.isPending}
-            />
-          ))
-        )}
-      </div>
-
-      {/* Invitations */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-medium">Invitations</h2>
-        {data.invitations.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-4">No invitations.</p>
-        ) : (
-          data.invitations.map((inv) => (
-            <InvitationRow
-              key={inv.id}
-              invitation={inv}
-              onResend={() => handleResend(inv.id)}
-              onRevoke={() => handleRevoke(inv.id)}
-              isResending={resendInvitation.isPending}
-              isRevoking={revokeInvitation.isPending}
             />
           ))
         )}

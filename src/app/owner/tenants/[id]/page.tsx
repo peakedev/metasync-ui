@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { generatePassword } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,13 +17,20 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Copy, Check, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 export default function TenantDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Post-creation state
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ["tenant", id],
@@ -50,18 +58,35 @@ export default function TenantDetailPage() {
     },
   });
 
-  const inviteMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const response = await supabase.functions.invoke("invite", {
-        body: { email, role: "tenant_admin", tenantId: id },
+  const createMutation = useMutation({
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-user`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password, role: "tenant_admin", tenantId: id }),
       });
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
     },
     onSuccess: () => {
-      setInviteOpen(false);
-      setInviteEmail("");
       queryClient.invalidateQueries({ queryKey: ["tenant-admins", id] });
+      toast.success(`Admin account created for ${createEmail}`);
+    },
+    onError: (err) => {
+      setCreateError(err.message);
     },
   });
 
@@ -77,6 +102,35 @@ export default function TenantDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tenant-admins", id] }),
   });
 
+  function resetCreateForm() {
+    setCreateEmail("");
+    setCreateError(null);
+    setCreatedPassword(null);
+    setCopied(false);
+    setShowPassword(false);
+  }
+
+  function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    const password = generatePassword();
+    setCreatedPassword(password);
+    createMutation.mutate({ email: createEmail, password });
+  }
+
+  function handleCopy() {
+    if (!createdPassword) return;
+    navigator.clipboard.writeText(createdPassword);
+    setCopied(true);
+    toast.success("Password copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleCloseCreate() {
+    setCreateOpen(false);
+    resetCreateForm();
+  }
+
   if (tenantLoading) {
     return (
       <div className="space-y-4">
@@ -89,6 +143,8 @@ export default function TenantDetailPage() {
   if (!tenant) {
     return <div className="text-muted-foreground">Tenant not found</div>;
   }
+
+  const isCreated = createMutation.isSuccess && createdPassword;
 
   return (
     <div className="space-y-6">
@@ -120,9 +176,9 @@ export default function TenantDetailPage() {
             <CardTitle>Tenant Admins</CardTitle>
             <CardDescription>Manage administrators for this tenant</CardDescription>
           </div>
-          <Button size="sm" onClick={() => setInviteOpen(true)}>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
-            Invite Admin
+            Create Admin
           </Button>
         </CardHeader>
         <CardContent>
@@ -172,39 +228,71 @@ export default function TenantDetailPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) handleCloseCreate(); else setCreateOpen(true); }}>
         <DialogContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              inviteMutation.mutate(inviteEmail);
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>Invite Tenant Admin</DialogTitle>
-              <DialogDescription>
-                Send an invitation email to a new admin for {tenant.name}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Label htmlFor="inviteEmail">Email address</Label>
-              <Input
-                id="inviteEmail"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                required
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={inviteMutation.isPending}>
-                {inviteMutation.isPending ? "Sending..." : "Send Invitation"}
-              </Button>
-            </DialogFooter>
-          </form>
+          {!isCreated ? (
+            <form onSubmit={handleCreateSubmit}>
+              <DialogHeader>
+                <DialogTitle>Create Tenant Admin</DialogTitle>
+                <DialogDescription>
+                  Create a new admin account for {tenant.name} with a generated password.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Label htmlFor="createEmail">Email address</Label>
+                <Input
+                  id="createEmail"
+                  type="email"
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                  required
+                />
+                {createError && <p className="text-sm text-destructive mt-2">{createError}</p>}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleCloseCreate}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || !createEmail}>
+                  {createMutation.isPending ? "Creating..." : "Create Admin"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Admin Created</DialogTitle>
+                <DialogDescription>
+                  Account created for <strong>{createEmail}</strong>. Copy the generated password below and share it with the admin.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Generated Password</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      type={showPassword ? "text" : "password"}
+                      value={createdPassword}
+                      className="font-mono"
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button type="button" variant="outline" size="icon" onClick={handleCopy}>
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This password will not be shown again. Make sure to copy it now.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCloseCreate}>Done</Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       let destination = redirectTo;
 
-      // Honour explicit redirectTo for invite and password-reset flows
-      if (!redirectTo.startsWith("/invite/") && redirectTo !== "/login/update-password") {
+      // Honour explicit redirectTo for password-reset flows
+      if (redirectTo !== "/login/update-password") {
         const claims = data.user.app_metadata;
 
         if (claims?.user_role === "owner") {

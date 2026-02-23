@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Mail, Shield, Trash2 } from "lucide-react";
 import type { IAMAuthUser } from "@/types/iam";
+import { ChangePasswordDialog } from "@/components/iam/change-password-dialog";
 
 interface OwnerRowProps {
   owner: IAMAuthUser;
@@ -32,22 +33,26 @@ export function OwnerRow({ owner, isSelf }: OwnerRowProps) {
         </div>
       </div>
 
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div>
-              <Button variant="ghost" size="sm" disabled>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            {isSelf
-              ? "Cannot remove your own owner account"
-              : "Owner removal not available yet"}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <div className="flex items-center gap-2">
+        <ChangePasswordDialog userId={owner.id} userEmail={owner.email} />
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <Button variant="ghost" size="sm" disabled>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isSelf
+                ? "Cannot remove your own owner account"
+                : "Owner removal not available yet"}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     </div>
   );
 }

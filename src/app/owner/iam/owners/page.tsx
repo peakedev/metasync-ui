@@ -3,7 +3,7 @@
 import { useOwnerList } from "@/hooks/iam/use-owner-list";
 import { useSession } from "@/hooks/use-session";
 import { OwnerRow } from "@/components/iam/owner-row";
-import { InviteOwnerDialog } from "@/components/iam/invite-owner-dialog";
+import { CreateOwnerDialog } from "@/components/iam/create-owner-dialog";
 
 export default function OwnersPage() {
   const { data, isLoading } = useOwnerList();
@@ -13,7 +13,7 @@ export default function OwnersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Owners</h1>
-        <InviteOwnerDialog />
+        <CreateOwnerDialog />
       </div>
 
       {isLoading ? (

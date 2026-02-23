@@ -82,84 +82,9 @@ export function useIAMMutations() {
     },
   });
 
-  const revokeInvitation = useMutation({
-    mutationFn: async ({ invitationId }: { invitationId: string }) => {
-      const { error } = await supabase
-        .from("invitations")
-        .update({ status: "expired" as const })
-        .eq("id", invitationId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["iam-users"] });
-      queryClient.invalidateQueries({ queryKey: ["iam-invitations"] });
-    },
-  });
-
-  const resendInvitation = useMutation({
-    mutationFn: async ({ invitationId }: { invitationId: string }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/resend-invite`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ invitationId }),
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["iam-users"] });
-      queryClient.invalidateQueries({ queryKey: ["iam-invitations"] });
-    },
-  });
-
-  const inviteOwner = useMutation({
-    mutationFn: async ({ email }: { email: string }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-owner`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["owner-list"] });
-    },
-  });
-
   return {
     changeRole,
     reassignClient,
     removeMembership,
-    revokeInvitation,
-    resendInvitation,
-    inviteOwner,
   };
 }

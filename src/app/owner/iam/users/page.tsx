@@ -5,7 +5,7 @@ import { Suspense, useCallback, useMemo } from "react";
 import { useIAMUsers } from "@/hooks/iam/use-iam-users";
 import { UserDirectoryFilters } from "@/components/iam/user-directory-filters";
 import { UserDirectoryTable } from "@/components/iam/user-directory-table";
-import { InviteUserDialog } from "@/components/iam/invite-user-dialog";
+import { CreateUserDialog } from "@/components/iam/create-user-dialog";
 import type { IAMUsersFilters } from "@/types/iam";
 
 export default function UsersPage() {
@@ -62,7 +62,7 @@ function UsersPageContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Users</h1>
-        <InviteUserDialog />
+        <CreateUserDialog />
       </div>
       <UserDirectoryFilters
         filters={filters}
