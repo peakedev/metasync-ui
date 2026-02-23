@@ -31,8 +31,9 @@ jobs:
           version: 2.76.12
       - run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_REF }}
       - name: Pull remote migrations applied out-of-band
+        timeout-minutes: 2
         run: |
-          supabase db pull || true
+          supabase db pull --schema public || true
           if [ -n "$(git diff --name-only -- supabase/migrations/)" ] || [ -n "$(git ls-files --others --exclude-standard -- supabase/migrations/)" ]; then
             echo "new_migrations=true" >> "$GITHUB_ENV"
           fi
