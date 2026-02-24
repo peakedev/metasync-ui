@@ -33,9 +33,15 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { tenantId, path, method, body: reqBody, action } = body;
 
-    // Handle store-secret action
+    // Handle non-proxy actions
     if (action === "store_admin_key") {
-      return await handleStoreAdminKey(supabase, user, claims, body);
+      return await handleStoreAdminKey(claims, body);
+    }
+    if (action === "check_admin_key") {
+      return await handleCheckAdminKey(claims, body);
+    }
+    if (action === "check_health") {
+      return await handleCheckHealth(claims, body);
     }
 
     if (!tenantId || !path) {
@@ -156,22 +162,123 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-async function handleStoreAdminKey(
-  _supabase: ReturnType<typeof createClient>,
-  user: { app_metadata: Record<string, unknown> },
+function assertAdminAccess(
   claims: Record<string, unknown>,
-  body: { tenantId: string; key: string }
-) {
-  const { tenantId, key } = body;
-
-  // Only admin or owner can store admin key
+  tenantId: string
+): Response | null {
   if (claims.user_role !== "tenant_admin" && claims.user_role !== "owner") {
     return new Response(JSON.stringify({ error: "forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  if (claims.user_role !== "owner" && claims.tenant_id !== tenantId) {
+    return new Response(JSON.stringify({ error: "tenant_mismatch" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}
 
+function getServiceClient() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+}
+
+async function handleStoreAdminKey(
+  claims: Record<string, unknown>,
+  body: { tenantId: string; key: string }
+) {
+  const { tenantId, key } = body;
+  const denied = assertAdminAccess(claims, tenantId);
+  if (denied) return denied;
+
+  const serviceClient = getServiceClient();
+  const secretName = `tenant_${tenantId}_admin_key`;
+
+  const { data: existing, error: existsErr } = await serviceClient.rpc(
+    "vault_secret_exists",
+    { secret_name: secretName }
+  );
+
+  if (existsErr) {
+    console.error("vault_secret_exists error:", existsErr);
+    return new Response(JSON.stringify({ error: "vault_error", detail: existsErr.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (existing) {
+    const { error: updateErr } = await serviceClient.rpc("vault_update_secret", {
+      secret_name: secretName,
+      new_secret: key,
+    });
+    if (updateErr) {
+      console.error("vault_update_secret error:", updateErr);
+      return new Response(JSON.stringify({ error: "vault_error", detail: updateErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    const { error: createErr } = await serviceClient.rpc("vault_create_secret", {
+      secret_value: key,
+      secret_name: secretName,
+      secret_description: `MetaSync admin key for tenant ${tenantId}`,
+    });
+    if (createErr) {
+      console.error("vault_create_secret error:", createErr);
+      return new Response(JSON.stringify({ error: "vault_error", detail: createErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ success: true }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleCheckAdminKey(
+  claims: Record<string, unknown>,
+  body: { tenantId: string }
+) {
+  const { tenantId } = body;
+  const denied = assertAdminAccess(claims, tenantId);
+  if (denied) return denied;
+
+  const serviceClient = getServiceClient();
+  const secretName = `tenant_${tenantId}_admin_key`;
+
+  const { data: exists, error } = await serviceClient.rpc("vault_secret_exists", {
+    secret_name: secretName,
+  });
+
+  if (error) {
+    console.error("vault_secret_exists error:", error);
+    return new Response(JSON.stringify({ error: "vault_error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(JSON.stringify({ exists: !!exists }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleCheckHealth(
+  claims: Record<string, unknown>,
+  body: { tenantId: string }
+) {
+  const { tenantId } = body;
   if (claims.user_role !== "owner" && claims.tenant_id !== tenantId) {
     return new Response(JSON.stringify({ error: "tenant_mismatch" }), {
       status: 403,
@@ -179,35 +286,37 @@ async function handleStoreAdminKey(
     });
   }
 
-  const serviceClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const serviceClient = getServiceClient();
+  const { data: tenant } = await serviceClient
+    .from("tenants")
+    .select("backend_url")
+    .eq("id", tenantId)
+    .single();
 
-  const secretName = `tenant_${tenantId}_admin_key`;
-
-  // Check if secret already exists
-  const { data: existing } = await serviceClient.rpc("vault_secret_exists", {
-    secret_name: secretName,
-  });
-
-  if (existing) {
-    // Update existing secret
-    await serviceClient.rpc("vault_update_secret", {
-      secret_name: secretName,
-      new_secret: key,
-    });
-  } else {
-    // Create new secret
-    await serviceClient.rpc("vault_create_secret", {
-      secret_value: key,
-      secret_name: secretName,
-      secret_description: `MetaSync admin key for tenant ${tenantId}`,
+  if (!tenant?.backend_url) {
+    return new Response(JSON.stringify({ error: "no_backend_url" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  try {
+    const res = await fetch(`${tenant.backend_url}/health`, {
+      method: "GET",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return new Response(
+      JSON.stringify({ reachable: res.ok, status: res.status }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (err) {
+    console.error("Health check failed:", err);
+    return new Response(JSON.stringify({ reachable: false }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 }
