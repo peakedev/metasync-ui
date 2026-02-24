@@ -132,6 +132,9 @@ Deno.serve(async (req: Request) => {
         });
       }
       outHeaders["admin_api_key"] = adminKey;
+      if (clientId) {
+        outHeaders["client_id"] = clientId;
+      }
     }
 
     // Build request body
