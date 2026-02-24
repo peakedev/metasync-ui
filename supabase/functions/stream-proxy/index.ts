@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      outHeaders["api_key"] = adminKey;
+      outHeaders["admin_api_key"] = adminKey;
     }
 
     // Build request body
