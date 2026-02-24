@@ -61,7 +61,7 @@ Forwards requests to the caller's tenant MetaSync backend using the appropriate 
    - `tenant_user` with a client -> `client_{client_id}_api_key`
    - `tenant_user` without a client -> return 403 `no_client`
 6. Retrieve the API key from Vault using `rpc('get_secret_by_name')` with a fallback to querying `vault.decrypted_secrets`.
-7. Forward the request: `fetch(backend_url + path, { method, body, headers: { api_key } })`.
+7. Forward the request with role-appropriate auth headers: `admin_api_key` for admins/owners, or `client_id` + `client_api_key` for client users.
 8. Return the MetaSync response verbatim (status code and body).
 
 ### Store admin key action
@@ -116,7 +116,7 @@ SSE-specific proxy for the chat streaming interface. Pipes the MetaSync SSE stre
 3. Look up `backend_url` from the `tenants` table.
 4. Retrieve the API key from Vault (same credential logic as `proxy`).
 5. Build the request body with `model`, `temperature`, `userPrompt`, and optional `additionalPrompts`.
-6. `POST {backend_url}/stream` with headers `Accept: text/event-stream` and `api_key`.
+6. `POST {backend_url}/stream` with `Accept: text/event-stream` and role-appropriate auth headers (`admin_api_key` or `client_id` + `client_api_key`).
 7. Pipe the response body directly: `new Response(metasyncResponse.body, { headers: { 'Content-Type': 'text/event-stream' } })`.
 
 The response includes a `X-Stream-Id` header forwarded from the MetaSync backend when present.

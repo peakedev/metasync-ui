@@ -72,12 +72,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Get API key
+    // Determine secret name and auth headers based on role
     let secretName: string;
-    if (claims.user_role === "tenant_admin" || claims.user_role === "owner") {
+    const isAdmin = claims.user_role === "tenant_admin" || claims.user_role === "owner";
+
+    if (isAdmin) {
       secretName = `tenant_${tenantId}_admin_key`;
     } else if (clientId) {
-      // Validate that this user is assigned to the requested client
       const { data: assignment } = await serviceClient
         .from("user_client_assignments")
         .select("id")
@@ -99,19 +100,39 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Query vault for API key
-    const { data: secrets } = await serviceClient
-      .from("vault.decrypted_secrets" as never)
-      .select("decrypted_secret")
-      .eq("name" as never, secretName)
-      .single();
+    // Get API key from Vault
+    const { data: vaultSecret, error: vaultError } = await serviceClient
+      .rpc("get_secret_by_name", { secret_name: secretName });
 
-    const apiKey = (secrets as { decrypted_secret: string } | null)?.decrypted_secret;
+    let apiKey: string | null = null;
+    if (vaultError || !vaultSecret) {
+      const { data: secrets } = await serviceClient
+        .from("vault.decrypted_secrets" as never)
+        .select("decrypted_secret")
+        .eq("name" as never, secretName)
+        .single();
+      apiKey = (secrets as { decrypted_secret: string } | null)?.decrypted_secret ?? null;
+    } else {
+      apiKey = vaultSecret;
+    }
+
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
         status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Build outgoing headers with the correct MetaSync auth scheme
+    const outHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    };
+    if (isAdmin) {
+      outHeaders["admin_api_key"] = apiKey;
+    } else {
+      outHeaders["client_id"] = clientId!;
+      outHeaders["client_api_key"] = apiKey;
     }
 
     // Build request body
@@ -127,11 +148,7 @@ Deno.serve(async (req: Request) => {
     // Forward SSE request to MetaSync backend
     const metasyncResponse = await fetch(`${tenant.backend_url}/stream`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-        api_key: apiKey,
-      },
+      headers: outHeaders,
       body: JSON.stringify(streamBody),
     });
 

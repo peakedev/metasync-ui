@@ -78,12 +78,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Determine secret name based on role
+    // Determine secret name and auth headers based on role
     let secretName: string;
-    if (claims.user_role === "tenant_admin" || claims.user_role === "owner") {
+    const isAdmin = claims.user_role === "tenant_admin" || claims.user_role === "owner";
+
+    if (isAdmin) {
       secretName = `tenant_${tenantId}_admin_key`;
     } else if (body.clientId) {
-      // Validate that this user is assigned to the requested client
       const { data: assignment } = await serviceClient
         .from("user_client_assignments")
         .select("id")
@@ -109,7 +110,6 @@ Deno.serve(async (req: Request) => {
     const { data: vaultSecret, error: vaultError } = await serviceClient
       .rpc("get_secret_by_name", { secret_name: secretName });
 
-    // Fallback: query vault.decrypted_secrets directly
     let apiKey: string | null = null;
     if (vaultError || !vaultSecret) {
       const { data: secrets } = await serviceClient
@@ -129,14 +129,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Build outgoing headers with the correct MetaSync auth scheme
+    const outHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (isAdmin) {
+      outHeaders["admin_api_key"] = apiKey;
+    } else {
+      outHeaders["client_id"] = body.clientId;
+      outHeaders["client_api_key"] = apiKey;
+    }
+
     // Forward request to MetaSync backend
     const targetUrl = `${tenant.backend_url}${path}`;
     const fetchOptions: RequestInit = {
       method: method || "GET",
-      headers: {
-        "Content-Type": "application/json",
-        api_key: apiKey,
-      },
+      headers: outHeaders,
     };
 
     if (reqBody && method !== "GET") {
