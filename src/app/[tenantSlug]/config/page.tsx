@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/hooks/use-tenant";
 import { Button } from "@/components/ui/button";
@@ -17,55 +17,56 @@ export default function ConfigPage() {
   const { data: tenant, isLoading } = useTenant(tenantSlug);
   const queryClient = useQueryClient();
 
-  const [backendUrl, setBackendUrl] = useState("");
-  const [urlInitialized, setUrlInitialized] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<"unknown" | "checking" | "connected" | "unreachable">("unknown");
+  const [backendUrlDraft, setBackendUrlDraft] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyStatus, setKeyStatus] = useState<"unknown" | "checking" | "configured" | "not_configured">("unknown");
 
-  const checkHealth = useCallback(async (tenantId: string) => {
-    setHealthStatus("checking");
-    try {
+  const backendUrl = backendUrlDraft ?? tenant?.backend_url ?? "";
+
+  const { data: healthData, isFetching: isHealthChecking } = useQuery({
+    queryKey: ["config", "health", tenant?.id],
+    queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("proxy", {
-        body: { action: "check_health", tenantId },
+        body: { action: "check_health", tenantId: tenant!.id },
       });
-      if (error) {
-        setHealthStatus("unreachable");
-        return;
-      }
-      setHealthStatus(data?.reachable ? "connected" : "unreachable");
-    } catch {
-      setHealthStatus("unreachable");
-    }
-  }, []);
+      if (error) return { reachable: false };
+      return data as { reachable: boolean };
+    },
+    enabled: !!tenant?.backend_url,
+    retry: false,
+  });
 
-  const checkAdminKey = useCallback(async (tenantId: string) => {
-    setKeyStatus("checking");
-    try {
+  const { data: keyData, isFetching: isKeyChecking } = useQuery({
+    queryKey: ["config", "admin_key", tenant?.id],
+    queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("proxy", {
-        body: { action: "check_admin_key", tenantId },
+        body: { action: "check_admin_key", tenantId: tenant!.id },
       });
-      if (error) {
-        setKeyStatus("not_configured");
-        return;
-      }
-      setKeyStatus(data?.exists ? "configured" : "not_configured");
-    } catch {
-      setKeyStatus("not_configured");
-    }
-  }, []);
+      if (error) return { exists: false };
+      return data as { exists: boolean };
+    },
+    enabled: !!tenant,
+    retry: false,
+  });
 
-  // Initialize form and run checks when tenant loads
-  useEffect(() => {
-    if (!tenant || urlInitialized) return;
-    setBackendUrl(tenant.backend_url || "");
-    setUrlInitialized(true);
+  const healthStatus = !tenant?.backend_url
+    ? "unknown"
+    : isHealthChecking
+      ? "checking"
+      : healthData?.reachable
+        ? "connected"
+        : healthData
+          ? "unreachable"
+          : "unknown";
 
-    if (tenant.backend_url) {
-      checkHealth(tenant.id);
-    }
-    checkAdminKey(tenant.id);
-  }, [tenant, urlInitialized, checkHealth, checkAdminKey]);
+  const keyStatus = !tenant
+    ? "unknown"
+    : isKeyChecking
+      ? "checking"
+      : keyData?.exists
+        ? "configured"
+        : keyData
+          ? "not_configured"
+          : "unknown";
 
   const urlMutation = useMutation({
     mutationFn: async (url: string) => {
@@ -75,10 +76,11 @@ export default function ConfigPage() {
         .eq("id", tenant!.id);
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: () => {
+      setBackendUrlDraft(null);
       queryClient.invalidateQueries({ queryKey: ["tenant", tenantSlug] });
+      queryClient.invalidateQueries({ queryKey: ["config", "health", tenant!.id] });
       toast.success("Backend URL saved");
-      checkHealth(tenant!.id);
     },
   });
 
@@ -96,7 +98,7 @@ export default function ConfigPage() {
     },
     onSuccess: () => {
       setAdminKey("");
-      setKeyStatus("configured");
+      queryClient.invalidateQueries({ queryKey: ["config", "admin_key", tenant!.id] });
       toast.success("Admin API key saved");
     },
     onError: (err) => {
@@ -131,7 +133,7 @@ export default function ConfigPage() {
           <div className="flex gap-2">
             <Input
               value={backendUrl}
-              onChange={(e) => setBackendUrl(e.target.value)}
+              onChange={(e) => setBackendUrlDraft(e.target.value)}
               placeholder="https://metasync.example.com"
             />
             <Button
