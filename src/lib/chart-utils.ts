@@ -191,23 +191,27 @@ export function downsampleIfNeeded(
 }
 
 /**
- * Buckets points into evenly-spaced time intervals and averages values.
- * Produces a smooth line proportional to the time scale.
- * Each bucket keeps the metadata of the point closest to the bucket average
- * so click-to-detail still works.
+ * Buckets points into evenly-spaced time intervals on a shared grid and
+ * averages values. All series must use the same grid (globalMin/globalMax)
+ * so their timestamps align in the pivot step.
  */
 export function smoothToTimeBuckets(
   points: ChartDataPoint[],
-  bucketCount = 60
+  bucketCount = 60,
+  globalMin?: number,
+  globalMax?: number
 ): ChartDataPoint[] {
   if (points.length <= 2) return points;
 
-  const minTs = points[0].timestamp;
-  const maxTs = points[points.length - 1].timestamp;
+  const minTs = globalMin ?? points[0].timestamp;
+  const maxTs = globalMax ?? points[points.length - 1].timestamp;
   const range = maxTs - minTs;
   if (range === 0) return points;
 
-  const bucketWidth = range / bucketCount;
+  // Never use more buckets than data points — avoids sparse grids
+  const effectiveBuckets = Math.min(bucketCount, points.length);
+  const bucketWidth = range / effectiveBuckets;
+
   const buckets = new Map<
     number,
     { sum: number; count: number; points: ChartDataPoint[] }
@@ -216,7 +220,7 @@ export function smoothToTimeBuckets(
   for (const p of points) {
     const bucketIdx = Math.min(
       Math.floor((p.timestamp - minTs) / bucketWidth),
-      bucketCount - 1
+      effectiveBuckets - 1
     );
     const bucketTs = minTs + (bucketIdx + 0.5) * bucketWidth;
 

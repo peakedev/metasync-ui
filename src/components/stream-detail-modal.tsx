@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Clock,
   Cpu,
@@ -123,7 +122,7 @@ export function StreamDetailModal({ streamId, tenantSlug, onClose }: StreamDetai
       <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0">
         {isPending ? (
           <div className="p-6 space-y-4">
-            <VisuallyHidden><DialogTitle>Loading stream details</DialogTitle></VisuallyHidden>
+            <DialogTitle className="sr-only">Loading stream details</DialogTitle>
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-4 w-32" />
             <div className="grid grid-cols-3 gap-3">
@@ -135,7 +134,7 @@ export function StreamDetailModal({ streamId, tenantSlug, onClose }: StreamDetai
           </div>
         ) : error ? (
           <div className="p-6">
-            <VisuallyHidden><DialogTitle>Error loading stream</DialogTitle></VisuallyHidden>
+            <DialogTitle className="sr-only">Error loading stream</DialogTitle>
             <MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} />
           </div>
         ) : stream ? (

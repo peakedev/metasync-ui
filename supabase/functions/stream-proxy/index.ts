@@ -113,17 +113,8 @@ Deno.serve(async (req: Request) => {
       Accept: "text/event-stream",
     };
 
-    if (clientId) {
-      const clientKey = await fetchVaultKey(`client_${clientId}_api_key`);
-      if (!clientKey) {
-        return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      outHeaders["client_id"] = clientId;
-      outHeaders["client_api_key"] = clientKey;
-    } else {
+    if (isAdmin) {
+      // Admins always authenticate with the admin API key
       const adminKey = await fetchVaultKey(`tenant_${tenantId}_admin_key`);
       if (!adminKey) {
         return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
@@ -132,9 +123,18 @@ Deno.serve(async (req: Request) => {
         });
       }
       outHeaders["admin_api_key"] = adminKey;
-      if (clientId) {
-        outHeaders["client_id"] = clientId;
+      outHeaders["client_id"] = clientId || "admin";
+    } else {
+      // Non-admin users authenticate with the client API key
+      const clientKey = await fetchVaultKey(`client_${clientId!}_api_key`);
+      if (!clientKey) {
+        return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+      outHeaders["client_id"] = clientId!;
+      outHeaders["client_api_key"] = clientKey;
     }
 
     // Build request body

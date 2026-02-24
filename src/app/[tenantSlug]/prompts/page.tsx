@@ -21,7 +21,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -214,14 +213,14 @@ export default function PromptsPage() {
         <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
           {!isNew && detailPending ? (
             <div className="p-6 space-y-4">
-              <VisuallyHidden><DialogTitle>Loading prompt</DialogTitle></VisuallyHidden>
+              <DialogTitle className="sr-only">Loading prompt</DialogTitle>
               <Skeleton className="h-6 w-48" />
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-40" />
             </div>
           ) : !isNew && detailError ? (
             <div className="p-6">
-              <VisuallyHidden><DialogTitle>Error loading prompt</DialogTitle></VisuallyHidden>
+              <DialogTitle className="sr-only">Error loading prompt</DialogTitle>
               <MetaSyncError error={(detailError as Error).message} tenantSlug={tenantSlug} />
             </div>
           ) : (

@@ -146,7 +146,11 @@ export function StreamAnalyticsChart({
       transformed.points
     );
 
-    // Smooth each series independently to keep lines aligned on time axis
+    // Compute global time range so all series share the same bucket grid
+    const globalMin = points[0]?.timestamp ?? 0;
+    const globalMax = points[points.length - 1]?.timestamp ?? 0;
+
+    // Smooth each series on the shared time grid
     const byGroup = new Map<string, typeof points>();
     for (const p of points) {
       const arr = byGroup.get(p.groupKey);
@@ -156,7 +160,9 @@ export function StreamAnalyticsChart({
 
     const smoothed: typeof points = [];
     for (const [, groupPoints] of byGroup) {
-      smoothed.push(...smoothToTimeBuckets(groupPoints, 60));
+      smoothed.push(
+        ...smoothToTimeBuckets(groupPoints, 60, globalMin, globalMax)
+      );
     }
     smoothed.sort((a, b) => a.timestamp - b.timestamp);
 
@@ -441,7 +447,7 @@ export function StreamAnalyticsChart({
                           },
                         }}
                         strokeWidth={1.5}
-                        connectNulls={false}
+                        connectNulls
                         isAnimationActive={!hasInteracted}
                       />
                     ) : null
