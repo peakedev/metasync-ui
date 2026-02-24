@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
 export interface AppClaims {
   user_role?: "owner" | "tenant_admin" | "tenant_user";
   tenant_id?: string | null;
+}
+
+function decodeJwtClaims(accessToken: string | undefined): AppClaims {
+  if (!accessToken) return {};
+  try {
+    const payload = JSON.parse(atob(accessToken.split(".")[1]));
+    return (payload.app_metadata ?? {}) as AppClaims;
+  } catch {
+    return {};
+  }
 }
 
 export function useSession() {
@@ -32,7 +42,10 @@ export function useSession() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const claims = (user?.app_metadata ?? {}) as AppClaims;
+  const claims = useMemo(
+    () => decodeJwtClaims(session?.access_token),
+    [session?.access_token]
+  );
 
   return { user, session, claims, loading };
 }

@@ -28,6 +28,12 @@ vi.mock("@/lib/supabase", () => ({
 // Import after mocking
 import { useSession } from "../use-session";
 
+function fakeJwt(payload: Record<string, unknown>): string {
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = btoa(JSON.stringify(payload));
+  return `${header}.${body}.fake-signature`;
+}
+
 describe("useSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,11 +55,11 @@ describe("useSession", () => {
   });
 
   it("sets user and session after getSession resolves", async () => {
-    const fakeUser = {
-      id: "user-1",
-      app_metadata: { user_role: "owner", tenant_id: "t-1" },
+    const fakeUser = { id: "user-1" };
+    const fakeSession = {
+      user: fakeUser,
+      access_token: fakeJwt({ app_metadata: { user_role: "owner", tenant_id: "t-1" } }),
     };
-    const fakeSession = { user: fakeUser, access_token: "token-123" };
 
     mockGetSession.mockResolvedValue({
       data: { session: fakeSession },
@@ -69,15 +75,14 @@ describe("useSession", () => {
     expect(result.current.session).toEqual(fakeSession);
   });
 
-  it("extracts claims from app_metadata", async () => {
-    const fakeUser = {
-      id: "user-1",
-      app_metadata: {
-        user_role: "tenant_admin",
-        tenant_id: "t-2",
-      },
+  it("extracts claims from JWT access_token", async () => {
+    const fakeUser = { id: "user-1" };
+    const fakeSession = {
+      user: fakeUser,
+      access_token: fakeJwt({
+        app_metadata: { user_role: "tenant_admin", tenant_id: "t-2" },
+      }),
     };
-    const fakeSession = { user: fakeUser };
 
     mockGetSession.mockResolvedValue({
       data: { session: fakeSession },
@@ -95,7 +100,7 @@ describe("useSession", () => {
     });
   });
 
-  it("returns empty claims when no user", async () => {
+  it("returns empty claims when no session", async () => {
     mockGetSession.mockResolvedValue({
       data: { session: null },
     });
@@ -121,12 +126,12 @@ describe("useSession", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    // Simulate auth state change
-    const newUser = {
-      id: "user-2",
-      app_metadata: { user_role: "owner" },
+    // Simulate auth state change with JWT containing claims
+    const newUser = { id: "user-2" };
+    const newSession = {
+      user: newUser,
+      access_token: fakeJwt({ app_metadata: { user_role: "owner" } }),
     };
-    const newSession = { user: newUser };
 
     act(() => {
       authStateCallback("SIGNED_IN", newSession);
@@ -134,6 +139,7 @@ describe("useSession", () => {
 
     expect(result.current.user).toEqual(newUser);
     expect(result.current.session).toEqual(newSession);
+    expect(result.current.claims).toEqual({ user_role: "owner" });
 
     // Cleanup on unmount
     unmount();

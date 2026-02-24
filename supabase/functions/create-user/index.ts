@@ -92,8 +92,19 @@ Deno.serve(async (req: Request) => {
     let userId: string;
 
     if (existingAuthUser?.email_confirmed_at) {
-      // User already has a confirmed account — add membership directly
       userId = existingAuthUser.id;
+
+      const { error: updateError } = await serviceClient.auth.admin.updateUserById(
+        userId,
+        { app_metadata: { user_role: role, tenant_id: tenantId } }
+      );
+      if (updateError) {
+        console.error("Update user app_metadata error:", updateError);
+        return new Response(JSON.stringify({ error: updateError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     } else {
       if (existingAuthUser && !existingAuthUser.email_confirmed_at) {
         // Unconfirmed stale user — delete it so we can create fresh

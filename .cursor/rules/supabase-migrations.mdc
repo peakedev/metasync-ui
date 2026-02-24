@@ -1,0 +1,19 @@
+---
+description: Always use Supabase migrations for database changes — never suggest manual SQL or dashboard edits
+alwaysApply: true
+---
+
+# Database Changes Must Use Migrations
+
+**NEVER** tell the user to run SQL manually, use the Supabase dashboard, or apply database changes by hand.
+This project has a full migration pipeline (`supabase/migrations/`).
+
+Any SQL that needs to run against the database — schema changes, data fixes, backfills, function updates — **must** be written as a new migration file:
+
+```bash
+npx supabase migration new <descriptive_name>
+```
+
+Then write the SQL in the generated file under `supabase/migrations/`.
+
+This includes one-time data fixes, `auth.users` metadata updates, RLS policy changes, and stored function modifications. No exceptions.
