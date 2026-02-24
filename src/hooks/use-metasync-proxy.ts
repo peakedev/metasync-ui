@@ -31,15 +31,30 @@ async function proxyFetch(
   };
   if (clientId) payload.clientId = clientId;
 
-  const response = await supabase.functions.invoke("proxy", {
-    body: payload,
+  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const rawRes = await globalThis.fetch(`${sbUrl}/functions/v1/proxy`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    },
+    body: JSON.stringify(payload),
   });
+  const rawBody = await rawRes.text();
 
-  if (response.error) {
-    throw new Error(response.error.message || "Proxy request failed");
+  if (!rawRes.ok) {
+    let msg = "Proxy request failed";
+    try {
+      const parsed = JSON.parse(rawBody);
+      msg = parsed.error ?? parsed.detail ?? parsed.message ?? rawBody;
+    } catch {
+      msg = rawBody || `HTTP ${rawRes.status}`;
+    }
+    throw new Error(msg);
   }
 
-  return response.data;
+  try { return JSON.parse(rawBody); } catch { return rawBody; }
 }
 
 export function useMetaSyncProxy<T = unknown>(
@@ -48,7 +63,7 @@ export function useMetaSyncProxy<T = unknown>(
 ) {
   const { data: tenant } = useTenant(options.tenantSlug);
   const { session } = useSession();
-  const { selectedClientId } = useClientContext();
+  const { selectedClientId, isLoading: clientLoading } = useClientContext();
 
   const queryString = options.queryParams
     ? "?" + new URLSearchParams(options.queryParams).toString()
@@ -58,7 +73,7 @@ export function useMetaSyncProxy<T = unknown>(
   return useQuery<T>({
     queryKey: ["metasync", options.tenantSlug, options.path, options.queryParams, selectedClientId],
     queryFn: () => proxyFetch(tenant!.id, fullPath, "GET", undefined, selectedClientId) as Promise<T>,
-    enabled: !!tenant && !!session && (options.enabled ?? true),
+    enabled: !!tenant && !!session && !clientLoading && (options.enabled ?? true),
     ...queryOptions,
   });
 }

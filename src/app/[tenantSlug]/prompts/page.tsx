@@ -11,16 +11,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 interface Prompt {
-  _id: string;
+  _id?: string;
+  id?: string;
+  prompt_id?: string;
   name: string;
   type: string;
   status: string;
   version: number;
   owner?: string;
   createdAt: string;
+}
+
+function getPromptId(prompt: Prompt): string {
+  return prompt._id ?? prompt.id ?? prompt.prompt_id ?? prompt.name;
 }
 
 export default function PromptsPage() {
@@ -33,7 +39,7 @@ export default function PromptsPage() {
   if (filters.status) queryParams.status = filters.status;
   if (filters.type) queryParams.type = filters.type;
 
-  const { data: prompts, isLoading, error } = useMetaSyncProxy<Prompt[]>({
+  const { data: prompts, isPending, error, refetch, isRefetching } = useMetaSyncProxy<Prompt[]>({
     path: "/prompts",
     queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
     tenantSlug,
@@ -51,7 +57,12 @@ export default function PromptsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Prompts</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Prompts</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => router.push(`/${tenantSlug}/prompts/new`)}>
           <Plus className="mr-2 h-4 w-4" />
           New Prompt
@@ -76,7 +87,7 @@ export default function PromptsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>
       ) : (
         <Table>
@@ -91,7 +102,7 @@ export default function PromptsPage() {
           </TableHeader>
           <TableBody>
             {(prompts || []).map((prompt) => (
-              <TableRow key={prompt._id} className="cursor-pointer" onClick={() => router.push(`/${tenantSlug}/prompts/${prompt._id}`)}>
+              <TableRow key={getPromptId(prompt)} className="cursor-pointer" onClick={() => router.push(`/${tenantSlug}/prompts/${getPromptId(prompt)}`)}>
                 <TableCell className="font-medium">{prompt.name}</TableCell>
                 <TableCell><Badge variant="outline">{prompt.type}</Badge></TableCell>
                 <TableCell>

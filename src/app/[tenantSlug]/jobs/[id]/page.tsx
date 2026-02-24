@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { toast } from "sonner";
 
 interface JobDetail {
@@ -44,7 +45,7 @@ function JsonViewer({ data, label }: { data: unknown; label: string }) {
 export default function JobDetailPage() {
   const { tenantSlug, id } = useParams<{ tenantSlug: string; id: string }>();
 
-  const { data: job, isLoading } = useMetaSyncProxy<JobDetail>({
+  const { data: job, isPending, error } = useMetaSyncProxy<JobDetail>({
     path: `/jobs/${id}`,
     tenantSlug,
   });
@@ -56,7 +57,8 @@ export default function JobDetailPage() {
     invalidateKeys: [["metasync", tenantSlug, `/jobs/${id}`], ["metasync", tenantSlug, "/jobs"]],
   });
 
-  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (isPending) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (error) return <div className="space-y-6"><h1 className="text-2xl font-semibold">Job</h1><MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} /></div>;
   if (!job) return <div className="text-muted-foreground">Job not found</div>;
 
   const validTransitions = VALID_TRANSITIONS[job.status] || [];

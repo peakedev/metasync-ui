@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface Job {
@@ -49,7 +49,7 @@ export default function JobsPage() {
   const queryParams: Record<string, string> = {};
   if (statusFilter) queryParams.status = statusFilter;
 
-  const { data: jobs, isLoading, error } = useMetaSyncProxy<Job[]>({
+  const { data: jobs, isPending, error, refetch, isRefetching } = useMetaSyncProxy<Job[]>({
     path: "/jobs",
     queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
     tenantSlug,
@@ -99,7 +99,12 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Jobs</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Jobs</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => router.push(`/${tenantSlug}/jobs/new`)}>
           <Plus className="mr-2 h-4 w-4" />
           New Job
@@ -138,7 +143,7 @@ export default function JobsPage() {
         )}
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>
       ) : (
         <Table>

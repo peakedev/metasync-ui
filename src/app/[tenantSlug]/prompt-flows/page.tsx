@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 interface PromptFlow {
   _id: string;
@@ -21,7 +21,7 @@ export default function PromptFlowsPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const router = useRouter();
 
-  const { data: flows, isLoading, error } = useMetaSyncProxy<PromptFlow[]>({
+  const { data: flows, isPending, error, refetch, isRefetching } = useMetaSyncProxy<PromptFlow[]>({
     path: "/prompt-flows",
     tenantSlug,
   });
@@ -38,14 +38,19 @@ export default function PromptFlowsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Prompt Flows</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Prompt Flows</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => router.push(`/${tenantSlug}/prompt-flows/new`)}>
           <Plus className="mr-2 h-4 w-4" />
           New Flow
         </Button>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>
       ) : (
         <Table>

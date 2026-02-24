@@ -43,6 +43,12 @@ Deno.serve(async (req: Request) => {
     if (action === "check_health") {
       return await handleCheckHealth(claims, body);
     }
+    if (action === "store_client_key") {
+      return await handleStoreClientKey(claims, body);
+    }
+    if (action === "check_client_keys") {
+      return await handleCheckClientKeys(claims, body);
+    }
 
     if (!tenantId || !path) {
       return new Response(JSON.stringify({ error: "missing_params" }), {
@@ -78,13 +84,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Determine secret name and auth headers based on role
-    let secretName: string;
     const isAdmin = claims.user_role === "tenant_admin" || claims.user_role === "owner";
 
-    if (isAdmin) {
-      secretName = `tenant_${tenantId}_admin_key`;
-    } else if (body.clientId) {
+    if (!isAdmin && !body.clientId) {
+      return new Response(JSON.stringify({ error: "no_client" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!isAdmin && body.clientId) {
       const { data: assignment } = await serviceClient
         .from("user_client_assignments")
         .select("id")
@@ -98,44 +107,29 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      secretName = `client_${body.clientId}_api_key`;
-    } else {
-      return new Response(JSON.stringify({ error: "no_client" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
-    // Get API key from Vault
-    const { data: vaultSecret, error: vaultError } = await serviceClient
-      .rpc("get_secret_by_name", { secret_name: secretName });
-
-    let apiKey: string | null = null;
-    if (vaultError || !vaultSecret) {
-      const { data: secrets } = await serviceClient
-        .from("vault.decrypted_secrets" as never)
-        .select("decrypted_secret")
-        .eq("name" as never, secretName)
-        .single();
-      apiKey = (secrets as { decrypted_secret: string } | null)?.decrypted_secret ?? null;
-    } else {
-      apiKey = vaultSecret;
-    }
-
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Build outgoing headers with the correct MetaSync auth scheme
     const outHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (isAdmin) {
-      outHeaders["admin_api_key"] = apiKey;
-    } else {
+
+    if (body.clientId) {
+      const clientKey = await fetchVaultKey(serviceClient, `client_${body.clientId}_api_key`);
+      if (!clientKey) {
+        return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       outHeaders["client_id"] = body.clientId;
-      outHeaders["client_api_key"] = apiKey;
+      outHeaders["client_api_key"] = clientKey;
+    } else {
+      const adminKey = await fetchVaultKey(serviceClient, `tenant_${tenantId}_admin_key`);
+      if (!adminKey) {
+        return new Response(JSON.stringify({ error: "credentials_not_configured" }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      outHeaders["api_key"] = adminKey;
     }
 
     // Forward request to MetaSync backend
@@ -150,15 +144,33 @@ Deno.serve(async (req: Request) => {
     }
 
     const metasyncResponse = await fetch(targetUrl, fetchOptions);
+    const contentType = metasyncResponse.headers.get("Content-Type") || "application/json";
 
-    const responseBody = await metasyncResponse.text();
-    return new Response(responseBody, {
-      status: metasyncResponse.status,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": metasyncResponse.headers.get("Content-Type") || "application/json",
-      },
-    });
+    if (metasyncResponse.ok) {
+      const responseBody = await metasyncResponse.text();
+      return new Response(responseBody, {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": contentType },
+      });
+    }
+
+    // Backend returned non-2xx — wrap it so supabase.functions.invoke
+    // doesn't swallow the details behind a generic FunctionsHttpError.
+    const errorBody = await metasyncResponse.text();
+    let parsedError: unknown;
+    try { parsedError = JSON.parse(errorBody); } catch { parsedError = errorBody; }
+
+    return new Response(
+      JSON.stringify({
+        error: "backend_error",
+        backendStatus: metasyncResponse.status,
+        detail: parsedError,
+      }),
+      {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (err) {
     console.error("Proxy error:", err);
     return new Response(JSON.stringify({ error: "backend_unreachable" }), {
@@ -192,6 +204,20 @@ function getServiceClient() {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+}
+
+async function fetchVaultKey(
+  serviceClient: ReturnType<typeof createClient>,
+  name: string
+): Promise<string | null> {
+  const { data, error } = await serviceClient.rpc("get_secret_by_name", { secret_name: name });
+  if (!error && data) return data;
+  const { data: secrets } = await serviceClient
+    .from("vault.decrypted_secrets" as never)
+    .select("decrypted_secret")
+    .eq("name" as never, name)
+    .single();
+  return (secrets as { decrypted_secret: string } | null)?.decrypted_secret ?? null;
 }
 
 async function handleStoreAdminKey(
@@ -325,4 +351,101 @@ async function handleCheckHealth(
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+}
+
+async function handleStoreClientKey(
+  claims: Record<string, unknown>,
+  body: { tenantId: string; clientId: string; key: string }
+) {
+  const { tenantId, clientId, key } = body;
+  const denied = assertAdminAccess(claims, tenantId);
+  if (denied) return denied;
+
+  if (!clientId || !key) {
+    return new Response(JSON.stringify({ error: "missing_params" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const serviceClient = getServiceClient();
+  const secretName = `client_${clientId}_api_key`;
+
+  const { data: existing, error: existsErr } = await serviceClient.rpc(
+    "vault_secret_exists",
+    { secret_name: secretName }
+  );
+
+  if (existsErr) {
+    console.error("vault_secret_exists error:", existsErr);
+    return new Response(JSON.stringify({ error: "vault_error", detail: existsErr.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (existing) {
+    const { error: updateErr } = await serviceClient.rpc("vault_update_secret", {
+      secret_name: secretName,
+      new_secret: key,
+    });
+    if (updateErr) {
+      console.error("vault_update_secret error:", updateErr);
+      return new Response(JSON.stringify({ error: "vault_error", detail: updateErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    const { error: createErr } = await serviceClient.rpc("vault_create_secret", {
+      secret_value: key,
+      secret_name: secretName,
+      secret_description: `MetaSync client API key for client ${clientId}`,
+    });
+    if (createErr) {
+      console.error("vault_create_secret error:", createErr);
+      return new Response(JSON.stringify({ error: "vault_error", detail: createErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ success: true }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleCheckClientKeys(
+  claims: Record<string, unknown>,
+  body: { tenantId: string; clientIds: string[] }
+) {
+  const { tenantId, clientIds } = body;
+  const denied = assertAdminAccess(claims, tenantId);
+  if (denied) return denied;
+
+  if (!Array.isArray(clientIds) || clientIds.length === 0) {
+    return new Response(JSON.stringify({ keys: {} }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const serviceClient = getServiceClient();
+  const keys: Record<string, boolean> = {};
+
+  await Promise.all(
+    clientIds.map(async (cid) => {
+      const { data: exists } = await serviceClient.rpc("vault_secret_exists", {
+        secret_name: `client_${cid}_api_key`,
+      });
+      keys[cid] = !!exists;
+    })
+  );
+
+  return new Response(JSON.stringify({ keys }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }

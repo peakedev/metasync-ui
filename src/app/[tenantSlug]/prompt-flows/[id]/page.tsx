@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { GripVertical, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,7 +35,7 @@ export default function FlowBuilderPage() {
   const [formInit, setFormInit] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  const { data: flow, isLoading: flowLoading } = useMetaSyncProxy<FlowDetail>({
+  const { data: flow, isPending: flowPending, error: flowError } = useMetaSyncProxy<FlowDetail>({
     path: `/prompt-flows/${id}`,
     tenantSlug,
     enabled: !isNew,
@@ -104,7 +105,8 @@ export default function FlowBuilderPage() {
 
   const promptMap = new Map((availablePrompts || []).map((p) => [p._id, p]));
 
-  if (!isNew && flowLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (!isNew && flowPending) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (!isNew && flowError) return <div className="space-y-6"><h1 className="text-2xl font-semibold">Flow</h1><MetaSyncError error={(flowError as Error).message} tenantSlug={tenantSlug} /></div>;
 
   return (
     <div className="space-y-6">

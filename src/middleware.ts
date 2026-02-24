@@ -1,6 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+function decodeJwtClaims(accessToken: string | undefined): Record<string, unknown> {
+  if (!accessToken) return {};
+  try {
+    const payload = JSON.parse(atob(accessToken.split(".")[1]));
+    return (payload.app_metadata ?? {}) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -35,6 +45,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // Validate the user with the auth server (also refreshes expired tokens).
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -51,11 +62,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && !isPublicRoute) {
-    const claims = user.app_metadata;
+    // Read claims from the JWT (which includes token-hook-injected values)
+    // rather than user.app_metadata (which only has persistent DB values).
+    const { data: { session } } = await supabase.auth.getSession();
+    const claims = decodeJwtClaims(session?.access_token);
 
     // Owner routes require owner role
     if (pathname.startsWith("/owner")) {
-      if (claims?.user_role !== "owner") {
+      if (claims.user_role !== "owner") {
         const url = request.nextUrl.clone();
         url.pathname = "/403";
         return NextResponse.redirect(url);
@@ -71,12 +85,8 @@ export async function middleware(request: NextRequest) {
       !pathname.startsWith("/auth") &&
       !pathname.startsWith("/403")
     ) {
-      const slug = tenantMatch[1];
-
-      // Owner can access all tenants
-      if (claims?.user_role !== "owner") {
-        // Non-owner users need tenant_id set
-        if (!claims?.tenant_id) {
+      if (claims.user_role !== "owner") {
+        if (!claims.tenant_id) {
           const url = request.nextUrl.clone();
           url.pathname = "/403";
           return NextResponse.redirect(url);

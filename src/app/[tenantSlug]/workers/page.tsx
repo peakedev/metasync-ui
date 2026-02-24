@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus, Play, Square, Trash2 } from "lucide-react";
+import { Plus, Play, Square, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface Worker { _id: string; workerId: string; status: string; config?: { pollInterval?: number; maxItemsPerBatch?: number }; createdAt: string; }
@@ -27,7 +27,7 @@ export default function WorkersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newWorker, setNewWorker] = useState({ workerId: "", pollInterval: "5000", maxItemsPerBatch: "10" });
 
-  const { data: workers, isLoading, error } = useMetaSyncProxy<Worker[]>({ path: "/workers", tenantSlug });
+  const { data: workers, isPending, error, refetch, isRefetching } = useMetaSyncProxy<Worker[]>({ path: "/workers", tenantSlug });
 
   const createMutation = useMetaSyncMutation<Record<string, unknown>, Worker>({
     path: "/workers", method: "POST", tenantSlug, invalidateKeys: [["metasync", tenantSlug, "/workers"]],
@@ -42,7 +42,12 @@ export default function WorkersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Workers</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Workers</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />New Worker</Button>
       </div>
 
@@ -57,7 +62,7 @@ export default function WorkersPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12" />)}</div>
       ) : (
         <Table>

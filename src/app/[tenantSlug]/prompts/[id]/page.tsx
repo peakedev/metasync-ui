@@ -13,17 +13,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface PromptDetail {
-  _id: string;
+  _id?: string;
+  id?: string;
+  prompt_id?: string;
   name: string;
   type: string;
   prompt: string;
   status: string;
   version: number;
   owner?: string;
+}
+
+function getPromptId(prompt: PromptDetail): string {
+  return prompt._id ?? prompt.id ?? prompt.prompt_id ?? prompt.name;
 }
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -40,7 +47,7 @@ export default function PromptEditorPage() {
   const [form, setForm] = useState({ name: "", type: "system", prompt: "", status: "DRAFT" });
   const [formInit, setFormInit] = useState(false);
 
-  const { data: promptData, isLoading } = useMetaSyncProxy<PromptDetail>({
+  const { data: promptData, isPending, error } = useMetaSyncProxy<PromptDetail>({
     path: `/prompts/${id}`,
     tenantSlug,
     enabled: !isNew,
@@ -74,14 +81,15 @@ export default function PromptEditorPage() {
     saveMutation.mutate(form, {
       onSuccess: (data) => {
         toast.success(isNew ? "Prompt created" : "Prompt updated");
-        if (isNew && data._id) router.replace(`/${tenantSlug}/prompts/${data._id}`);
+        if (isNew) router.replace(`/${tenantSlug}/prompts/${getPromptId(data)}`);
       },
     });
   }
 
   const validTransitions = promptData ? STATUS_TRANSITIONS[promptData.status] || [] : ["DRAFT"];
 
-  if (!isNew && isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (!isNew && isPending) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (!isNew && error) return <div className="space-y-6"><h1 className="text-2xl font-semibold">Prompt</h1><MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} /></div>;
 
   return (
     <div className="space-y-6">

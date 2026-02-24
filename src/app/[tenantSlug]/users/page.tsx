@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserPlus, Trash2, Copy, Check, Eye, EyeOff, X, Plus } from "lucide-react";
+import { UserPlus, Trash2, Copy, Check, Eye, EyeOff, X, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export default function UsersPage() {
@@ -30,7 +30,7 @@ export default function UsersPage() {
   const [copied, setCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { data: members = [], isLoading } = useQuery({
+  const { data: members = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["tenant-members", tenant?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("tenant_memberships").select("*").eq("tenant_id", tenant!.id);
@@ -189,7 +189,12 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Users</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Users</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => setCreateOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Create User</Button>
       </div>
 

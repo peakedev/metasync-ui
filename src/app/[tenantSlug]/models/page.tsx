@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus, Copy, Check } from "lucide-react";
+import { Plus, Copy, Check, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const SDK_TYPES = [
@@ -21,11 +21,17 @@ const SDK_TYPES = [
   "AzureOpenAI",
   "Anthropic",
   "Gemini",
+  "OpenAI",
   "test",
 ];
 
+const API_TYPES = ["anthropic", "foundry", "google-ai"];
+const SERVICES = ["google", "azure-ai", "anthropic"];
+const MAX_TOKEN_FIELDS = ["maxToken", "maxCompletionToken"];
+const CURRENCIES = ["USD", "EUR"];
+
 interface Model {
-  _id: string;
+  model_id: string;
   name: string;
   sdk: string;
   endpoint: string;
@@ -43,11 +49,13 @@ export default function ModelsPage() {
 
   const [form, setForm] = useState({
     name: "", sdk: "", endpoint: "", apiType: "", apiVersion: "",
-    deployment: "", service: "", key: "", maxToken: "",
+    deployment: "", service: "", key: "", maxTokenValue: "",
+    maxTokenField: "maxToken" as string,
     minTemperature: "", maxTemperature: "",
+    costTokens: "", costCurrency: "USD", costInput: "", costOutput: "",
   });
 
-  const { data: models, isLoading, error } = useMetaSyncProxy<Model[]>({
+  const { data: models, isPending, error, refetch, isRefetching } = useMetaSyncProxy<Model[]>({
     path: "/models",
     tenantSlug,
   });
@@ -61,16 +69,35 @@ export default function ModelsPage() {
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const payload: Record<string, unknown> = { ...form };
-    if (form.maxToken) payload.maxToken = parseInt(form.maxToken);
+    const { maxTokenValue, maxTokenField, costTokens, costCurrency, costInput, costOutput, ...rest } = form;
+    const payload: Record<string, unknown> = { ...rest };
+
+    if (maxTokenValue) payload[maxTokenField] = parseInt(maxTokenValue);
     if (form.minTemperature) payload.minTemperature = parseFloat(form.minTemperature);
     if (form.maxTemperature) payload.maxTemperature = parseFloat(form.maxTemperature);
+
+    // Remove transient fields that shouldn't be sent
+    delete payload.maxTokenValue;
+    delete payload.maxTokenField;
+    delete payload.costTokens;
+    delete payload.costCurrency;
+    delete payload.costInput;
+    delete payload.costOutput;
+
+    if (costTokens && costInput && costOutput) {
+      payload.cost = {
+        tokens: parseInt(costTokens),
+        currency: costCurrency,
+        input: parseFloat(costInput),
+        output: parseFloat(costOutput),
+      };
+    }
 
     createMutation.mutate(payload, {
       onSuccess: (data) => {
         if (data.key) setShownKey(data.key);
         setCreateOpen(false);
-        setForm({ name: "", sdk: "", endpoint: "", apiType: "", apiVersion: "", deployment: "", service: "", key: "", maxToken: "", minTemperature: "", maxTemperature: "" });
+        setForm({ name: "", sdk: "", endpoint: "", apiType: "", apiVersion: "", deployment: "", service: "", key: "", maxTokenValue: "", maxTokenField: "maxToken", minTemperature: "", maxTemperature: "", costTokens: "", costCurrency: "USD", costInput: "", costOutput: "" });
         toast.success("Model created");
       },
     });
@@ -96,14 +123,19 @@ export default function ModelsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Models</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Models</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Model
         </Button>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>
       ) : (
         <Table>
@@ -117,7 +149,7 @@ export default function ModelsPage() {
           </TableHeader>
           <TableBody>
             {(models || []).map((model) => (
-              <TableRow key={model._id} className="cursor-pointer" onClick={() => router.push(`/${tenantSlug}/models/${model._id}`)}>
+              <TableRow key={model.model_id} className="cursor-pointer" onClick={() => router.push(`/${tenantSlug}/models/${model.model_id}`)}>
                 <TableCell className="font-medium">{model.name}</TableCell>
                 <TableCell><Badge variant="outline">{model.sdk}</Badge></TableCell>
                 <TableCell className="text-muted-foreground truncate max-w-xs">{model.endpoint}</TableCell>
@@ -165,7 +197,12 @@ export default function ModelsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>API Type</Label>
-                  <Input value={form.apiType} onChange={(e) => setForm({ ...form, apiType: e.target.value })} />
+                  <Select value={form.apiType} onValueChange={(v) => setForm({ ...form, apiType: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select API type" /></SelectTrigger>
+                    <SelectContent>
+                      {API_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>API Version</Label>
@@ -179,21 +216,63 @@ export default function ModelsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Service</Label>
-                  <Input value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} />
+                  <Select value={form.service} onValueChange={(v) => setForm({ ...form, service: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                    <SelectContent>
+                      {SERVICES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Max Tokens Field</Label>
+                <Select value={form.maxTokenField} onValueChange={(v) => setForm({ ...form, maxTokenField: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MAX_TOKEN_FIELDS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Max Tokens</Label>
-                  <Input type="number" value={form.maxToken} onChange={(e) => setForm({ ...form, maxToken: e.target.value })} />
+                  <Input type="number" value={form.maxTokenValue} onChange={(e) => setForm({ ...form, maxTokenValue: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Min Temp</Label>
-                  <Input type="number" step="0.1" value={form.minTemperature} onChange={(e) => setForm({ ...form, minTemperature: e.target.value })} />
+                  <Label>Min Temp (0-1)</Label>
+                  <Input type="number" step="0.01" min="0" max="1" value={form.minTemperature} onChange={(e) => setForm({ ...form, minTemperature: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Temp</Label>
-                  <Input type="number" step="0.1" value={form.maxTemperature} onChange={(e) => setForm({ ...form, maxTemperature: e.target.value })} />
+                  <Label>Max Temp (0-1)</Label>
+                  <Input type="number" step="0.01" min="0" max="1" value={form.maxTemperature} onChange={(e) => setForm({ ...form, maxTemperature: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-base font-medium">Cost</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Token Base</Label>
+                    <Input type="number" placeholder="e.g. 1000000" value={form.costTokens} onChange={(e) => setForm({ ...form, costTokens: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Select value={form.costCurrency} onValueChange={(v) => setForm({ ...form, costCurrency: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Input Cost</Label>
+                    <Input type="number" step="0.01" placeholder="e.g. 3" value={form.costInput} onChange={(e) => setForm({ ...form, costInput: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Output Cost</Label>
+                    <Input type="number" step="0.01" placeholder="e.g. 15" value={form.costOutput} onChange={(e) => setForm({ ...form, costOutput: e.target.value })} />
+                  </div>
                 </div>
               </div>
             </div>

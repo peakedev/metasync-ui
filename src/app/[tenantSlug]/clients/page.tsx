@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
+import { useClientContext } from "@/contexts/client-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus, Copy, Check } from "lucide-react";
+import { Plus, Copy, Check, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client {
-  _id: string;
+  clientId: string;
   name: string;
   enabled: boolean;
   apiKey?: string;
@@ -28,12 +29,13 @@ export default function ClientsPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const router = useRouter();
   const { data: tenant } = useTenant(tenantSlug);
+  const { clientsWithKeys } = useClientContext();
   const [createOpen, setCreateOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [shownKey, setShownKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: clients, isLoading, error } = useMetaSyncProxy<Client[]>({
+  const { data: clients, isPending, error, refetch, isRefetching } = useMetaSyncProxy<Client[]>({
     path: "/clients",
     tenantSlug,
   });
@@ -82,14 +84,19 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Clients</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Clients</h1>
+          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Client
         </Button>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
         </div>
@@ -106,9 +113,9 @@ export default function ClientsPage() {
           <TableBody>
             {(clients || []).map((client) => (
               <TableRow
-                key={client._id}
+                key={client.clientId}
                 className="cursor-pointer"
-                onClick={() => router.push(`/${tenantSlug}/clients/${client._id}`)}
+                onClick={() => router.push(`/${tenantSlug}/clients/${client.clientId}`)}
               >
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell>
@@ -117,7 +124,11 @@ export default function ClientsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">Stored</Badge>
+                  {clientsWithKeys.has(client.clientId) ? (
+                    <Badge variant="secondary">Stored</Badge>
+                  ) : (
+                    <Badge variant="destructive">Missing</Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {new Date(client.createdAt).toLocaleDateString()}

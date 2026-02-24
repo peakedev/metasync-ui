@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/hooks/use-tenant";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
+import { useClientContext } from "@/contexts/client-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,11 +17,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { Copy, Check, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ClientDetail {
-  _id: string;
+  clientId: string;
   name: string;
   enabled: boolean;
   createdAt: string;
@@ -31,12 +33,14 @@ export default function ClientDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: tenant } = useTenant(tenantSlug);
+  const { clientsWithKeys } = useClientContext();
   const [editName, setEditName] = useState("");
   const [nameInit, setNameInit] = useState(false);
   const [shownKey, setShownKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [clientApiKey, setClientApiKey] = useState("");
 
-  const { data: client, isLoading } = useMetaSyncProxy<ClientDetail>({
+  const { data: client, isPending, error } = useMetaSyncProxy<ClientDetail>({
     path: `/clients/${id}`,
     tenantSlug,
   });
@@ -103,6 +107,29 @@ export default function ClientDetailPage() {
     tenantSlug,
   });
 
+  const storeKeyMutation = useMutation({
+    mutationFn: async (key: string) => {
+      const { data, error } = await supabase.functions.invoke("proxy", {
+        body: {
+          action: "store_client_key",
+          tenantId: tenant!.id,
+          clientId: id,
+          key,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      setClientApiKey("");
+      queryClient.invalidateQueries({ queryKey: ["client-keys-check"] });
+      toast.success("Client API key saved");
+    },
+    onError: (err) => {
+      toast.error(`Failed to save client key: ${err.message}`);
+    },
+  });
+
   const assignMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase
@@ -141,8 +168,17 @@ export default function ClientDetailPage() {
     }
   }
 
-  if (isLoading) {
+  if (isPending) {
     return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Client</h1>
+        <MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} />
+      </div>
+    );
   }
 
   if (!client) {
@@ -206,6 +242,39 @@ export default function ClientDetailPage() {
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Client API Key</CardTitle>
+          <CardDescription>
+            Store the client API key in Vault so this client can be selected and used for scoped API calls.
+            The key is stored securely and never displayed after saving.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              value={clientApiKey}
+              onChange={(e) => setClientApiKey(e.target.value)}
+              placeholder="Enter client API key"
+            />
+            <Button
+              onClick={() => storeKeyMutation.mutate(clientApiKey)}
+              disabled={storeKeyMutation.isPending || !clientApiKey}
+            >
+              {storeKeyMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+          <div>
+            {clientsWithKeys.has(id) ? (
+              <Badge variant="secondary">Configured</Badge>
+            ) : (
+              <Badge variant="outline">Not configured</Badge>
+            )}
           </div>
         </CardContent>
       </Card>

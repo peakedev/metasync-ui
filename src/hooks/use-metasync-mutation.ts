@@ -37,7 +37,17 @@ export function useMetaSyncMutation<TBody = unknown, TResponse = unknown>(
       });
 
       if (response.error) {
-        throw new Error(response.error.message || "Mutation failed");
+        let msg = "Mutation failed";
+        const ctx = (response.error as any).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const body = await ctx.json();
+            if (body?.error) msg = body.error;
+          } catch { /* response body already consumed or not JSON */ }
+        } else if (ctx && typeof ctx === "object" && ctx.error) {
+          msg = ctx.error;
+        }
+        throw new Error(msg);
       }
 
       return response.data as TResponse;

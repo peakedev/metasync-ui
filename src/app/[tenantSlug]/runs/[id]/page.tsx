@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { Pause, Play, X } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -16,13 +17,14 @@ interface RunDetail { _id: string; status: string; currentIteration: number; max
 
 export default function RunDetailPage() {
   const { tenantSlug, id } = useParams<{ tenantSlug: string; id: string }>();
-  const { data: run, isLoading } = useMetaSyncProxy<RunDetail>({ path: `/runs/${id}`, tenantSlug });
+  const { data: run, isPending, error } = useMetaSyncProxy<RunDetail>({ path: `/runs/${id}`, tenantSlug });
 
   const pauseMutation = useMetaSyncMutation<Record<string, never>, void>({ path: `/runs/${id}/pause`, method: "PATCH", tenantSlug, invalidateKeys: [["metasync", tenantSlug, `/runs/${id}`]] });
   const resumeMutation = useMetaSyncMutation<Record<string, never>, void>({ path: `/runs/${id}/resume`, method: "PATCH", tenantSlug, invalidateKeys: [["metasync", tenantSlug, `/runs/${id}`]] });
   const cancelMutation = useMetaSyncMutation<Record<string, never>, void>({ path: `/runs/${id}/cancel`, method: "PATCH", tenantSlug, invalidateKeys: [["metasync", tenantSlug, `/runs/${id}`]] });
 
-  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (isPending) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+  if (error) return <div className="space-y-6"><h1 className="text-2xl font-semibold">Run</h1><MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} /></div>;
   if (!run) return <div className="text-muted-foreground">Run not found</div>;
 
   const isRunning = run.status === "RUNNING";

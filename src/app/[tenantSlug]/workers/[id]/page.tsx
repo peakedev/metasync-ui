@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetaSyncError } from "@/components/metasync-error";
 import { Play, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +23,7 @@ export default function WorkerDetailPage() {
   const [maxBatch, setMaxBatch] = useState("");
   const [init, setInit] = useState(false);
 
-  const { data: worker, isLoading } = useMetaSyncProxy<WorkerDetail>({ path: `/workers/${id}`, tenantSlug });
+  const { data: worker, isPending, error } = useMetaSyncProxy<WorkerDetail>({ path: `/workers/${id}`, tenantSlug });
 
   if (worker && !init) { setPollInterval(worker.config?.pollInterval?.toString() || ""); setMaxBatch(worker.config?.maxItemsPerBatch?.toString() || ""); setInit(true); }
 
@@ -32,7 +33,8 @@ export default function WorkerDetailPage() {
   const stopMutation = useMetaSyncMutation<Record<string, never>, void>({ path: `/workers/${id}/stop`, method: "POST", tenantSlug, invalidateKeys: [["metasync", tenantSlug, `/workers/${id}`], ["metasync", tenantSlug, "/workers"]] });
   const deleteMutation = useMetaSyncMutation<Record<string, never>, void>({ path: `/workers/${id}`, method: "DELETE", tenantSlug, invalidateKeys: [["metasync", tenantSlug, "/workers"]] });
 
-  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>;
+  if (isPending) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>;
+  if (error) return <div className="space-y-6"><h1 className="text-2xl font-semibold">Worker</h1><MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} /></div>;
   if (!worker) return <div className="text-muted-foreground">Worker not found</div>;
 
   return (

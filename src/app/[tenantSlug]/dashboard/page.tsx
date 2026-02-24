@@ -7,7 +7,6 @@ import { useSession } from "@/hooks/use-session";
 import { useClientContext } from "@/contexts/client-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MetaSyncError } from "@/components/metasync-error";
 import Link from "next/link";
 import { Briefcase, HardDrive, MessageSquare, Play, Cpu, Key } from "lucide-react";
 
@@ -21,14 +20,20 @@ function SummaryCard({
   href,
   data,
   isLoading,
+  error,
 }: {
   title: string;
   icon: React.ReactNode;
   href: string;
   data?: SummaryData;
   isLoading: boolean;
+  error?: Error | null;
 }) {
-  const total = data ? Object.values(data).reduce((a, b) => a + b, 0) : 0;
+  const total = data
+    ? "total" in data
+      ? data.total
+      : Object.values(data).reduce((a, b) => (typeof b === "number" ? a + b : a), 0)
+    : 0;
 
   return (
     <Link href={href}>
@@ -40,6 +45,8 @@ function SummaryCard({
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-8 w-16" />
+          ) : error ? (
+            <div className="text-sm text-destructive">Unavailable</div>
           ) : (
             <div className="text-2xl font-bold">{total}</div>
           )}
@@ -56,22 +63,34 @@ export default function DashboardPage() {
   const { selectedClientId, availableClients } = useClientContext();
   const isAdmin = claims.user_role === "tenant_admin" || claims.user_role === "owner";
 
-  const { data: jobSummary, isLoading: jobsLoading, error: jobsError } = useMetaSyncProxy<SummaryData>({
+  const { data: jobSummary, isPending: jobsLoading, error: jobsError } = useMetaSyncProxy<SummaryData>({
     path: "/jobs/summary",
     tenantSlug,
     enabled: !!tenant,
   });
 
-  const { data: workerSummary, isLoading: workersLoading } = useMetaSyncProxy<SummaryData>({
+  const { data: workerSummary, isPending: workersLoading, error: workersError } = useMetaSyncProxy<SummaryData>({
     path: "/workers/summary",
     tenantSlug,
     enabled: !!tenant,
   });
 
-  const { data: streamSummary, isLoading: streamsLoading } = useMetaSyncProxy<SummaryData>({
+  const { data: streamSummary, isPending: streamsLoading, error: streamsError } = useMetaSyncProxy<SummaryData>({
     path: "/stream/summary",
     tenantSlug,
     enabled: !!tenant,
+  });
+
+  const { data: models, isPending: modelsLoading, error: modelsError } = useMetaSyncProxy<unknown[]>({
+    path: "/models",
+    tenantSlug,
+    enabled: !!tenant && isAdmin,
+  });
+
+  const { data: clients, isPending: clientsLoading, error: clientsError } = useMetaSyncProxy<unknown[]>({
+    path: "/clients",
+    tenantSlug,
+    enabled: !!tenant && isAdmin,
   });
 
   if (tenantLoading) {
@@ -89,18 +108,6 @@ export default function DashboardPage() {
 
   if (!tenant) {
     return <div className="text-muted-foreground">Tenant not found</div>;
-  }
-
-  if (jobsError) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <MetaSyncError
-          error={(jobsError as Error).message}
-          tenantSlug={tenantSlug}
-        />
-      </div>
-    );
   }
 
   return (
@@ -126,6 +133,7 @@ export default function DashboardPage() {
           href={`/${tenantSlug}/jobs`}
           data={jobSummary ?? undefined}
           isLoading={jobsLoading}
+          error={jobsError as Error | null}
         />
         <SummaryCard
           title="Workers"
@@ -133,6 +141,7 @@ export default function DashboardPage() {
           href={`/${tenantSlug}/workers`}
           data={workerSummary ?? undefined}
           isLoading={workersLoading}
+          error={workersError as Error | null}
         />
         <SummaryCard
           title="Streams"
@@ -140,6 +149,7 @@ export default function DashboardPage() {
           href={`/${tenantSlug}/streams`}
           data={streamSummary ?? undefined}
           isLoading={streamsLoading}
+          error={streamsError as Error | null}
         />
         <SummaryCard
           title="Runs"
@@ -154,15 +164,17 @@ export default function DashboardPage() {
               title="Models"
               icon={<Cpu className="h-4 w-4 text-muted-foreground" />}
               href={`/${tenantSlug}/models`}
-              data={undefined}
-              isLoading={false}
+              data={models ? { total: models.length } : undefined}
+              isLoading={modelsLoading}
+              error={modelsError as Error | null}
             />
             <SummaryCard
               title="Clients"
               icon={<Key className="h-4 w-4 text-muted-foreground" />}
               href={`/${tenantSlug}/clients`}
-              data={undefined}
-              isLoading={false}
+              data={clients ? { total: clients.length } : undefined}
+              isLoading={clientsLoading}
+              error={clientsError as Error | null}
             />
           </>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { supabase } from "@/lib/supabase";
@@ -8,7 +8,8 @@ import { supabase } from "@/lib/supabase";
 export default function Home() {
   const router = useRouter();
   const { user, claims, loading } = useSession();
-  const [tenantMissing, setTenantMissing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const attemptRef = useRef(0);
 
   useEffect(() => {
     if (loading) return;
@@ -23,37 +24,67 @@ export default function Home() {
       return;
     }
 
-    if (claims.tenant_id) {
-      supabase
+    if (!claims.tenant_id) {
+      setError(
+        "Your account is not associated with any tenant. Please contact your administrator or try signing in again."
+      );
+      return;
+    }
+
+    // Reset error on every new attempt (e.g. when session refreshes)
+    setError(null);
+
+    const currentAttempt = ++attemptRef.current;
+
+    async function resolveTenant() {
+      const { data, error: queryError } = await supabase
         .from("tenants")
         .select("slug")
-        .eq("id", claims.tenant_id)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            router.push(`/${data.slug}/dashboard`);
-          } else {
-            setTenantMissing(true);
-          }
-        });
+        .eq("id", claims.tenant_id!)
+        .single();
+
+      if (currentAttempt !== attemptRef.current) return;
+
+      if (data) {
+        router.push(`/${data.slug}/dashboard`);
+        return;
+      }
+
+      // Retry once after a short delay — the JWT might not have propagated
+      // to the RLS context on the very first request after login.
+      if (currentAttempt <= 1) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (currentAttempt !== attemptRef.current) return;
+
+        const retry = await supabase
+          .from("tenants")
+          .select("slug")
+          .eq("id", claims.tenant_id!)
+          .single();
+
+        if (currentAttempt !== attemptRef.current) return;
+
+        if (retry.data) {
+          router.push(`/${retry.data.slug}/dashboard`);
+          return;
+        }
+      }
+
+      console.error("[Home] Tenant lookup failed", {
+        tenantId: claims.tenant_id,
+        error: queryError,
+      });
+      setError("Your tenant could not be found. Please contact support.");
     }
+
+    resolveTenant();
   }, [user, claims, loading, router]);
 
-  // Derive error message from state — avoids calling setState synchronously in the effect
-  const errorMessage = useMemo(() => {
-    if (loading || !user) return null;
-    if (tenantMissing) return "Your tenant could not be found. Please contact support.";
-    if (!claims.user_role && !claims.tenant_id) {
-      return "Your account is not associated with any tenant. Please contact your administrator or try signing in again.";
-    }
-    return null;
-  }, [loading, user, claims, tenantMissing]);
-
-  if (errorMessage) {
+  if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="mx-auto max-w-md space-y-4 text-center">
-          <p className="text-sm text-muted-foreground">{errorMessage}</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
           <button
             onClick={async () => {
               await supabase.auth.signOut();

@@ -63,23 +63,32 @@ export async function GET(request: NextRequest) {
 
       // Honour explicit redirectTo for password-reset flows
       if (redirectTo !== "/login/update-password") {
-        const claims = data.user.app_metadata;
+        // Read claims from the JWT (which includes token-hook-injected values)
+        // rather than data.user.app_metadata (persistent DB metadata only).
+        let claims: Record<string, unknown> = {};
+        try {
+          const jwt = data.session.access_token;
+          const payload = JSON.parse(
+            Buffer.from(jwt.split(".")[1], "base64").toString()
+          );
+          claims = (payload.app_metadata ?? {}) as Record<string, unknown>;
+        } catch {
+          claims = data.user.app_metadata ?? {};
+        }
 
-        if (claims?.user_role === "owner") {
+        if (claims.user_role === "owner") {
           destination = "/owner/tenants";
-        } else if (claims?.tenant_id) {
+        } else if (claims.tenant_id) {
           const { data: tenant } = await supabase
             .from("tenants")
             .select("slug")
-            .eq("id", claims.tenant_id)
+            .eq("id", claims.tenant_id as string)
             .single();
 
           if (tenant) {
             destination = `/${tenant.slug}/dashboard`;
           }
         } else {
-          // No role/tenant in claims — send to root page which shows a
-          // helpful error with a sign-out option instead of looping.
           destination = "/";
         }
       }

@@ -37,6 +37,7 @@ import {
   Key,
   Crown,
   Monitor,
+  Lock,
 } from "lucide-react";
 
 interface NavItem {
@@ -92,6 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     selectedClientId,
     setSelectedClientId,
     availableClients,
+    clientsWithKeys,
   } = useClientContext();
 
   if (loading) {
@@ -121,8 +123,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const showClientSelector =
+  const showSidebarClientSelector =
     claims.user_role === "tenant_user" && availableClients.length > 0;
+
+  const showHeaderClientSelector =
+    claims.user_role === "tenant_admin" && availableClients.length > 0;
 
   return (
     <div className="flex min-h-screen">
@@ -134,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {showClientSelector && (
+        {showSidebarClientSelector && (
           <div className="border-b px-3 py-3">
             <Select
               value={selectedClientId ?? ""}
@@ -173,7 +178,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end border-b px-6">
+        <header className="flex h-14 items-center justify-between border-b px-6">
+          <div className="flex items-center gap-3">
+            {showHeaderClientSelector && (
+              <Select
+                value={selectedClientId ?? "__all__"}
+                onValueChange={(v) => setSelectedClientId(v === "__all__" ? null : v)}
+              >
+                <SelectTrigger className="w-[260px]">
+                  <Monitor className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="All Clients (Admin)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Clients (Admin)</SelectItem>
+                  {availableClients.map((c) => {
+                    const hasKey = clientsWithKeys.has(c.id);
+                    return (
+                      <SelectItem key={c.id} value={c.id} disabled={!hasKey}>
+                        <span className="flex items-center gap-2">
+                          {c.name}
+                          {!hasKey && <Lock className="h-3 w-3 text-muted-foreground" />}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
