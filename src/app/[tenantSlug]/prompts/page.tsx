@@ -1,38 +1,57 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
-import { Plus, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Prompt {
-  _id?: string;
-  id?: string;
-  prompt_id?: string;
+  promptId: string;
   name: string;
   type: string;
   status: string;
   version: number;
+  prompt: string;
   owner?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
-function getPromptId(prompt: Prompt): string {
-  return prompt._id ?? prompt.id ?? prompt.prompt_id ?? prompt.name;
-}
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ["PUBLISHED"],
+  PUBLISHED: ["ARCHIVE"],
+  ARCHIVE: [],
+};
 
 export default function PromptsPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const router = useRouter();
   const [filters, setFilters] = useState({ name: "", status: "", type: "" });
+
+  // Modal state: null = closed, "new" = create, string = edit promptId
+  const [modalPromptId, setModalPromptId] = useState<string | null>(null);
+  const isNew = modalPromptId === "new";
+  const isOpen = modalPromptId !== null;
+
+  const [form, setForm] = useState({ name: "", type: "system", prompt: "", status: "DRAFT" });
 
   const queryParams: Record<string, string> = {};
   if (filters.name) queryParams.name = filters.name;
@@ -44,6 +63,65 @@ export default function PromptsPage() {
     queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
     tenantSlug,
   });
+
+  const { data: promptDetail, isPending: detailPending, error: detailError } = useMetaSyncProxy<Prompt>({
+    path: modalPromptId && !isNew ? `/prompts/${modalPromptId}` : "",
+    tenantSlug,
+    enabled: !!modalPromptId && !isNew,
+  });
+
+  // Populate form when detail loads
+  useEffect(() => {
+    if (promptDetail && !isNew) {
+      setForm({
+        name: promptDetail.name,
+        type: promptDetail.type,
+        prompt: promptDetail.prompt,
+        status: promptDetail.status,
+      });
+    }
+  }, [promptDetail, isNew]);
+
+  // Reset form when opening for new
+  useEffect(() => {
+    if (isNew) {
+      setForm({ name: "", type: "system", prompt: "", status: "DRAFT" });
+    }
+  }, [isNew]);
+
+  const saveMutation = useMetaSyncMutation<Record<string, unknown>, Prompt>({
+    path: isNew ? "/prompts" : `/prompts/${modalPromptId}`,
+    method: isNew ? "POST" : "PATCH",
+    tenantSlug,
+    invalidateKeys: [["metasync", tenantSlug, "/prompts"]],
+  });
+
+  const deleteMutation = useMetaSyncMutation<Record<string, never>, void>({
+    path: `/prompts/${modalPromptId}`,
+    method: "DELETE",
+    tenantSlug,
+    invalidateKeys: [["metasync", tenantSlug, "/prompts"]],
+  });
+
+  function handleSave() {
+    saveMutation.mutate(form, {
+      onSuccess: (data) => {
+        toast.success(isNew ? "Prompt created" : "Prompt updated");
+        if (isNew) {
+          setModalPromptId(data.promptId);
+        }
+      },
+    });
+  }
+
+  function handleClose() {
+    setModalPromptId(null);
+    setForm({ name: "", type: "system", prompt: "", status: "DRAFT" });
+  }
+
+  const validTransitions = !isNew && promptDetail
+    ? STATUS_TRANSITIONS[promptDetail.status] || []
+    : ["DRAFT"];
 
   if (error) {
     return (
@@ -63,7 +141,7 @@ export default function PromptsPage() {
             <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <Button onClick={() => router.push(`/${tenantSlug}/prompts/new`)}>
+        <Button onClick={() => setModalPromptId("new")}>
           <Plus className="mr-2 h-4 w-4" />
           New Prompt
         </Button>
@@ -102,7 +180,11 @@ export default function PromptsPage() {
           </TableHeader>
           <TableBody>
             {(prompts || []).map((prompt) => (
-              <TableRow key={getPromptId(prompt)} className="cursor-pointer" onClick={() => router.push(`/${tenantSlug}/prompts/${getPromptId(prompt)}`)}>
+              <TableRow
+                key={prompt.promptId}
+                className="cursor-pointer"
+                onClick={() => setModalPromptId(prompt.promptId)}
+              >
                 <TableCell className="font-medium">{prompt.name}</TableCell>
                 <TableCell><Badge variant="outline">{prompt.type}</Badge></TableCell>
                 <TableCell>
@@ -111,15 +193,121 @@ export default function PromptsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>v{prompt.version}</TableCell>
-                <TableCell className="text-muted-foreground">{new Date(prompt.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {prompt.createdAt ? new Date(prompt.createdAt).toLocaleDateString() : "-"}
+                </TableCell>
               </TableRow>
             ))}
             {(!prompts || prompts.length === 0) && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No prompts yet.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  No prompts yet.
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       )}
+
+      {/* Prompt Editor Modal */}
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
+          {!isNew && detailPending ? (
+            <div className="p-6 space-y-4">
+              <VisuallyHidden><DialogTitle>Loading prompt</DialogTitle></VisuallyHidden>
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-40" />
+            </div>
+          ) : !isNew && detailError ? (
+            <div className="p-6">
+              <VisuallyHidden><DialogTitle>Error loading prompt</DialogTitle></VisuallyHidden>
+              <MetaSyncError error={(detailError as Error).message} tenantSlug={tenantSlug} />
+            </div>
+          ) : (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-0">
+                <div className="flex items-center justify-between gap-4 pr-8">
+                  <div>
+                    <DialogTitle>{isNew ? "New Prompt" : form.name}</DialogTitle>
+                    <DialogDescription>
+                      {isNew ? "Create a new prompt" : `Edit prompt`}
+                    </DialogDescription>
+                  </div>
+                  {!isNew && promptDetail && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline">v{promptDetail.version}</Badge>
+                      <Badge variant={promptDetail.status === "PUBLISHED" ? "secondary" : "outline"}>
+                        {promptDetail.status}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </DialogHeader>
+
+              <div className="flex-1 min-h-0 overflow-auto px-6 pt-4 pb-2 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={form.status}>{form.status}</SelectItem>
+                        {validTransitions.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2 flex flex-col flex-1 min-h-0">
+                  <Label>Prompt Content</Label>
+                  <Textarea
+                    value={form.prompt}
+                    onChange={(e) => setForm({ ...form, prompt: e.target.value })}
+                    rows={14}
+                    className="font-mono text-sm flex-1 min-h-[200px]"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="px-6 pb-6 pt-2">
+                {!isNew && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="mr-auto"
+                    onClick={() => {
+                      if (confirm("Delete this prompt?")) {
+                        deleteMutation.mutate({} as Record<string, never>, {
+                          onSuccess: () => {
+                            toast.success("Prompt deleted");
+                            handleClose();
+                          },
+                        });
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                )}
+                <Button onClick={handleSave} disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

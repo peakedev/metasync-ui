@@ -1,0 +1,192 @@
+<mxGraphModel dx="1422" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- Title -->
+    <mxCell id="title" value="Stream Analytics Chart - Component Architecture" style="text;fontSize=16;fontStyle=1;align=left;" vertex="1" parent="1">
+      <mxGeometry x="40" y="10" width="500" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- StreamsPage container -->
+    <mxCell id="page" value="StreamsPage" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;rounded=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="50" width="700" height="560" as="geometry" />
+    </mxCell>
+
+    <!-- Filters -->
+    <mxCell id="filters" value="Filters (time, status, model)" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="page">
+      <mxGeometry x="20" y="40" width="240" height="36" as="geometry" />
+    </mxCell>
+
+    <!-- Summary Card -->
+    <mxCell id="summary" value="Summary Card" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="page">
+      <mxGeometry x="20" y="90" width="240" height="36" as="geometry" />
+    </mxCell>
+
+    <!-- StreamAnalyticsChart -->
+    <mxCell id="chart-comp" value="StreamAnalyticsChart (NEW)" style="swimlane;startSize=24;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;rounded=1;" vertex="1" parent="page">
+      <mxGeometry x="20" y="140" width="660" height="260" as="geometry" />
+    </mxCell>
+
+    <!-- Chart Header -->
+    <mxCell id="chart-header" value="Chart Header" style="swimlane;startSize=20;fillColor=#fff9c4;strokeColor=#d6b656;fontSize=10;rounded=1;" vertex="1" parent="chart-comp">
+      <mxGeometry x="10" y="34" width="640" height="50" as="geometry" />
+    </mxCell>
+
+    <mxCell id="metric-sel" value="Metric Select" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=10;" vertex="1" parent="chart-header">
+      <mxGeometry x="10" y="24" width="100" height="22" as="geometry" />
+    </mxCell>
+    <mxCell id="group-sel" value="Grouping Select" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=10;" vertex="1" parent="chart-header">
+      <mxGeometry x="120" y="24" width="110" height="22" as="geometry" />
+    </mxCell>
+    <mxCell id="expand-btn" value="Expand Toggle" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=10;" vertex="1" parent="chart-header">
+      <mxGeometry x="560" y="24" width="70" height="22" as="geometry" />
+    </mxCell>
+
+    <!-- Recharts LineChart area -->
+    <mxCell id="recharts-area" value="Recharts LineChart (ResponsiveContainer)" style="swimlane;startSize=20;fillColor=#e8f5e9;strokeColor=#82b366;fontSize=10;rounded=1;" vertex="1" parent="chart-comp">
+      <mxGeometry x="10" y="94" width="640" height="120" as="geometry" />
+    </mxCell>
+
+    <mxCell id="xaxis" value="XAxis (time)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="10" y="26" width="80" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="yaxis" value="YAxis (metric)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="100" y="26" width="80" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="grid" value="CartesianGrid" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="190" y="26" width="80" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="tooltip" value="Custom Tooltip" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="280" y="26" width="80" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="legend" value="Legend" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="370" y="26" width="60" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="lines" value="Line x N (per group)" style="rounded=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=9;fontStyle=1;" vertex="1" parent="recharts-area">
+      <mxGeometry x="10" y="56" width="620" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="activedot" value="activeDot (onClick → onStreamClick)" style="rounded=1;fillColor=#c8e6c9;strokeColor=#4caf50;fontSize=9;" vertex="1" parent="recharts-area">
+      <mxGeometry x="10" y="86" width="250" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- Downsampling notice -->
+    <mxCell id="downsample" value="Downsampling Notice (conditional)" style="rounded=1;fillColor=#fff9c4;strokeColor=#d6b656;fontSize=10;dashed=1;" vertex="1" parent="chart-comp">
+      <mxGeometry x="10" y="224" width="200" height="24" as="geometry" />
+    </mxCell>
+
+    <!-- Streams Table -->
+    <mxCell id="table" value="Streams Table" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="page">
+      <mxGeometry x="20" y="416" width="240" height="36" as="geometry" />
+    </mxCell>
+
+    <!-- StreamDetailModal -->
+    <mxCell id="modal" value="StreamDetailModal" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="page">
+      <mxGeometry x="20" y="466" width="240" height="36" as="geometry" />
+    </mxCell>
+
+    <!-- Data flow: right side -->
+
+    <!-- useMetaSyncProxy box -->
+    <mxCell id="hook-analytics" value="useMetaSyncProxy&#xa;path: /streams/analytics&#xa;queryParams: { from, to }&#xa;staleTime: 60s" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+      <mxGeometry x="820" y="180" width="220" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="hook-streams" value="useMetaSyncProxy&#xa;path: /stream&#xa;queryParams: { from, to }" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+      <mxGeometry x="820" y="90" width="220" height="56" as="geometry" />
+    </mxCell>
+
+    <mxCell id="hook-summary" value="useMetaSyncProxy&#xa;path: /stream/summary" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+      <mxGeometry x="820" y="40" width="220" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- Transform pipeline -->
+    <mxCell id="transform" value="transformToChartData()&#xa;(metric, grouping)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="820" y="280" width="220" height="44" as="geometry" />
+    </mxCell>
+
+    <mxCell id="downsample-fn" value="downsampleIfNeeded()&#xa;(threshold: 2000, target: 500)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="820" y="340" width="220" height="44" as="geometry" />
+    </mxCell>
+
+    <mxCell id="pivot" value="pivotForRecharts()&#xa;→ RechartsRow[]" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="820" y="400" width="220" height="44" as="geometry" />
+    </mxCell>
+
+    <!-- Proxy / Backend -->
+    <mxCell id="proxy" value="Edge Function&#xa;(proxy)" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="1120" y="130" width="120" height="44" as="geometry" />
+    </mxCell>
+
+    <mxCell id="backend" value="MetaSync Backend&#xa;GET /streams/analytics" style="rounded=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="1120" y="200" width="160" height="44" as="geometry" />
+    </mxCell>
+
+    <!-- Shared modules -->
+    <mxCell id="shared-label" value="Shared Modules (NEW)" style="text;fontSize=12;fontStyle=5;align=left;" vertex="1" parent="1">
+      <mxGeometry x="820" y="480" width="200" height="24" as="geometry" />
+    </mxCell>
+
+    <mxCell id="types" value="src/types/&#xa;  processing-metrics.ts&#xa;  stream-analytics.ts" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+      <mxGeometry x="820" y="510" width="170" height="56" as="geometry" />
+    </mxCell>
+
+    <mxCell id="formatters" value="src/lib/&#xa;  formatters.ts&#xa;  chart-utils.ts" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="1">
+      <mxGeometry x="1010" y="510" width="150" height="56" as="geometry" />
+    </mxCell>
+
+    <!-- Arrows -->
+
+    <!-- Page to hooks -->
+    <mxCell id="e1" value="from/to" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="740" y="210"/><mxPoint as="targetPoint" x="820" y="210"/></mxGeometry>
+    </mxCell>
+
+    <!-- Hook to proxy -->
+    <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="1040" y="150"/><mxPoint as="targetPoint" x="1120" y="150"/></mxGeometry>
+    </mxCell>
+
+    <!-- Proxy to backend -->
+    <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="1180" y="174"/><mxPoint as="targetPoint" x="1180" y="200"/></mxGeometry>
+    </mxCell>
+
+    <!-- Hook to transform -->
+    <mxCell id="e4" value="StreamAnalyticsResponse" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="930" y="250"/><mxPoint as="targetPoint" x="930" y="280"/></mxGeometry>
+    </mxCell>
+
+    <!-- Transform to downsample -->
+    <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="930" y="324"/><mxPoint as="targetPoint" x="930" y="340"/></mxGeometry>
+    </mxCell>
+
+    <!-- Downsample to pivot -->
+    <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" parent="1">
+      <mxGeometry as="geometry"><mxPoint as="sourcePoint" x="930" y="384"/><mxPoint as="targetPoint" x="930" y="400"/></mxGeometry>
+    </mxCell>
+
+    <!-- Pivot back to chart -->
+    <mxCell id="e7" value="RechartsRow[]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;dashed=1;endArrow=open;" edge="1" parent="1">
+      <mxGeometry as="geometry">
+        <mxPoint as="sourcePoint" x="820" y="422"/>
+        <mxPoint as="targetPoint" x="740" y="340"/>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- Parallel fetch note -->
+    <mxCell id="parallel-note" value="3 parallel queries&#xa;(independent cache keys)" style="rounded=1;fillColor=#fff9c4;strokeColor=#d6b656;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+      <mxGeometry x="1050" y="64" width="150" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- activeDot click to modal -->
+    <mxCell id="e8" value="onStreamClick(streamId)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;dashed=1;" edge="1" parent="1">
+      <mxGeometry as="geometry">
+        <mxPoint as="sourcePoint" x="260" y="440"/>
+        <mxPoint as="targetPoint" x="260" y="516"/>
+      </mxGeometry>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

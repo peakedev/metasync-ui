@@ -96,6 +96,8 @@ Two sub-pages:
 
 The `useStreamProxy` hook manages the full streaming lifecycle with states: `idle -> streaming -> done/error -> idle`.
 
+**Analytics Chart** -- A collapsible time-series line chart between the summary card and the streams table. Visualizes per-stream processing metrics (tokens, durations, costs) over time using data from `GET /streams/analytics`. Supports metric selection (10 metrics), grouping by model/session/prompt, expand/collapse with sparkline preview, and click-to-detail interactions. Hidden below 768px viewport width. See [Streams & Analytics](./streams.md) for details.
+
 ### Run Management (`/[tenantSlug]/runs`)
 
 Lists execution runs from the MetaSync backend. Each run detail page shows progress tracking, configuration, and results. Runs represent individual prompt or flow executions.

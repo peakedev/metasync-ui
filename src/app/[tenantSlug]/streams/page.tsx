@@ -11,21 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
 import { StreamDetailModal } from "@/components/stream-detail-modal";
+import { StreamAnalyticsChart } from "@/components/stream-analytics-chart";
 import { Plus, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
-
-interface ProcessingMetrics {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  llmDuration: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  currency: string;
-  duration: number;
-  totalDuration: number;
-  overheadDuration: number;
-}
+import { formatCost, formatDuration } from "@/lib/formatters";
+import type { ProcessingMetrics } from "@/types/processing-metrics";
 
 interface StreamSession {
   _id: string;
@@ -77,20 +66,6 @@ function getMetric(s: StreamSession, field: SortField): number {
 
 function hasMetrics(m: ProcessingMetrics | null): m is ProcessingMetrics & { totalTokens: number } {
   return m != null && m.totalTokens != null;
-}
-
-function formatCost(cost: number, currency?: string) {
-  const sym = currency === "EUR" ? "\u20ac" : "$";
-  const decimals = cost !== 0 && Math.abs(cost) < 0.01 ? 6 : 2;
-  const [intPart, decPart] = cost.toFixed(decimals).split(".");
-  const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sym}${withDots},${decPart}`;
-}
-
-function formatDuration(seconds: number) {
-  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
-  if (seconds < 60) return `${seconds.toFixed(2)}s`;
-  return `${Math.floor(seconds / 60)}m ${(seconds % 60).toFixed(1)}s`;
 }
 
 export default function StreamsPage() {
@@ -268,6 +243,15 @@ export default function StreamsPage() {
           </div>
         </Card>
       ) : null}
+
+      <div className="hidden md:block">
+        <StreamAnalyticsChart
+          tenantSlug={tenantSlug}
+          from={queryParams?.from}
+          to={queryParams?.to}
+          onStreamClick={(id) => setSelectedStreamId(id)}
+        />
+      </div>
 
       {isPending ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>

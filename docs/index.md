@@ -6,6 +6,7 @@
 - [Authentication & Authorization](./auth.md) -- Auth flows, roles, RLS, custom token hook
 - [Edge Functions](./edge-functions.md) -- Proxy, stream-proxy, invite, complete-signup
 - [Frontend Features](./features.md) -- Page-by-page feature summary
+- [Streams & Analytics](./streams.md) -- Stream analytics chart, metrics, and data flow
 - [Supabase RLS Reference](./supabase-rls.md) -- RLS policies, verification queries, and new-project setup checklist
 - [Development Guide](./development.md) -- Setup, running, testing, and deployment
 
@@ -28,3 +29,5 @@ Architecture, ER, and sequence diagrams are in [`./diagrams/`](./diagrams/) as d
 - [Baseline Design](../specs/baseline/design.md) -- Architecture and software design document
 - [IAM Requirements](../specs/iam/requirements.md) -- Owner IAM management requirements
 - [IAM Design](../specs/iam/design.md) -- Owner IAM management design
+- [Stream Analytics Graph Requirements](../specs/graph/requirements.md) -- Analytics chart feature spec
+- [Stream Analytics Graph Design](../specs/graph/design.md) -- Analytics chart design document

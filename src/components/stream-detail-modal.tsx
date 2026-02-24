@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetaSyncError } from "@/components/metasync-error";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Clock,
   Cpu,
@@ -23,20 +24,8 @@ import {
   Timer,
   Tag,
 } from "lucide-react";
-
-interface ProcessingMetrics {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  llmDuration: number;
-  inputCost: number;
-  outputCost: number;
-  totalCost: number;
-  currency: string;
-  duration: number;
-  totalDuration: number;
-  overheadDuration: number;
-}
+import { formatCost, formatDuration, formatDate } from "@/lib/formatters";
+import type { ProcessingMetrics } from "@/types/processing-metrics";
 
 interface StreamFullDetail {
   _id: string;
@@ -66,24 +55,6 @@ interface StreamFullDetail {
     updatedBy: string | null;
     deletedBy: string | null;
   };
-}
-
-function formatCost(cost: number, currency?: string) {
-  const sym = currency === "EUR" ? "\u20ac" : "$";
-  const decimals = cost !== 0 && Math.abs(cost) < 0.01 ? 6 : 2;
-  const [intPart, decPart] = cost.toFixed(decimals).split(".");
-  const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${sym}${withDots},${decPart}`;
-}
-
-function formatDuration(seconds: number) {
-  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
-  if (seconds < 60) return `${seconds.toFixed(2)}s`;
-  return `${Math.floor(seconds / 60)}m ${(seconds % 60).toFixed(1)}s`;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
 }
 
 function parseClientReference(
@@ -152,6 +123,7 @@ export function StreamDetailModal({ streamId, tenantSlug, onClose }: StreamDetai
       <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0">
         {isPending ? (
           <div className="p-6 space-y-4">
+            <VisuallyHidden><DialogTitle>Loading stream details</DialogTitle></VisuallyHidden>
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-4 w-32" />
             <div className="grid grid-cols-3 gap-3">
@@ -163,6 +135,7 @@ export function StreamDetailModal({ streamId, tenantSlug, onClose }: StreamDetai
           </div>
         ) : error ? (
           <div className="p-6">
+            <VisuallyHidden><DialogTitle>Error loading stream</DialogTitle></VisuallyHidden>
             <MetaSyncError error={(error as Error).message} tenantSlug={tenantSlug} />
           </div>
         ) : stream ? (
