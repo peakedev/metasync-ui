@@ -115,7 +115,22 @@ export function StreamDetailModal({ streamId, tenantSlug, onClose }: StreamDetai
   });
 
   const clientRef = stream ? parseClientReference(stream.clientReference) : null;
-  const m = stream?.processingMetrics;
+  const raw = stream?.processingMetrics;
+  const m = raw
+    ? {
+        ...raw,
+        totalTokens: raw.totalTokens ?? 0,
+        inputTokens: raw.inputTokens ?? 0,
+        outputTokens: raw.outputTokens ?? 0,
+        totalCost: raw.totalCost ?? 0,
+        inputCost: raw.inputCost ?? 0,
+        outputCost: raw.outputCost ?? 0,
+        totalDuration: raw.totalDuration ?? 0,
+        llmDuration: raw.llmDuration ?? 0,
+        overheadDuration: raw.overheadDuration ?? 0,
+        currency: raw.currency ?? "USD",
+      }
+    : null;
 
   return (
     <Dialog open={!!streamId} onOpenChange={(open) => !open && onClose()}>
