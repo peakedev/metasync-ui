@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
@@ -69,9 +69,11 @@ export default function PromptsPage() {
     enabled: !!modalPromptId && !isNew,
   });
 
-  // Populate form when detail loads
-  useEffect(() => {
-    if (promptDetail && !isNew) {
+  // Populate form when detail loads (render-time state adjustment)
+  const [prevPromptDetail, setPrevPromptDetail] = useState<Prompt | undefined>();
+  if (promptDetail && promptDetail !== prevPromptDetail) {
+    setPrevPromptDetail(promptDetail);
+    if (!isNew) {
       setForm({
         name: promptDetail.name,
         type: promptDetail.type,
@@ -79,14 +81,7 @@ export default function PromptsPage() {
         status: promptDetail.status,
       });
     }
-  }, [promptDetail, isNew]);
-
-  // Reset form when opening for new
-  useEffect(() => {
-    if (isNew) {
-      setForm({ name: "", type: "system", prompt: "", status: "DRAFT" });
-    }
-  }, [isNew]);
+  }
 
   const saveMutation = useMetaSyncMutation<Record<string, unknown>, Prompt>({
     path: isNew ? "/prompts" : `/prompts/${modalPromptId}`,
@@ -140,7 +135,7 @@ export default function PromptsPage() {
             <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <Button onClick={() => setModalPromptId("new")}>
+        <Button onClick={() => { setForm({ name: "", type: "system", prompt: "", status: "DRAFT" }); setModalPromptId("new"); }}>
           <Plus className="mr-2 h-4 w-4" />
           New Prompt
         </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { supabase } from "@/lib/supabase";
@@ -8,8 +8,11 @@ import { supabase } from "@/lib/supabase";
 export default function Home() {
   const router = useRouter();
   const { user, claims, loading } = useSession();
-  const [error, setError] = useState<string | null>(null);
+  const [tenantLookupError, setTenantLookupError] = useState<string | null>(null);
   const attemptRef = useRef(0);
+
+  const noTenantId =
+    !loading && !!user && claims.user_role !== "owner" && !claims.tenant_id;
 
   useEffect(() => {
     if (loading) return;
@@ -24,19 +27,14 @@ export default function Home() {
       return;
     }
 
-    if (!claims.tenant_id) {
-      setError(
-        "Your account is not associated with any tenant. Please contact your administrator or try signing in again."
-      );
-      return;
-    }
-
-    // Reset error on every new attempt (e.g. when session refreshes)
-    setError(null);
+    if (!claims.tenant_id) return;
 
     const currentAttempt = ++attemptRef.current;
 
     async function resolveTenant() {
+      // Reset error on every new attempt (e.g. when session refreshes)
+      setTenantLookupError(null);
+
       const { data, error: queryError } = await supabase
         .from("tenants")
         .select("slug")
@@ -74,11 +72,15 @@ export default function Home() {
         tenantId: claims.tenant_id,
         error: queryError,
       });
-      setError("Your tenant could not be found. Please contact support.");
+      setTenantLookupError("Your tenant could not be found. Please contact support.");
     }
 
     resolveTenant();
   }, [user, claims, loading, router]);
+
+  const error = noTenantId
+    ? "Your account is not associated with any tenant. Please contact your administrator or try signing in again."
+    : tenantLookupError;
 
   if (error) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
@@ -154,21 +154,15 @@ export default function ModelsPage() {
     invalidateKeys: [["metasync", tenantSlug, "/models"]],
   });
 
-  useEffect(() => {
-    if (modalOpen && editingModel) {
-      setForm(modelToForm(editingModel));
-    } else if (modalOpen && !editingModel) {
-      setForm(EMPTY_FORM);
-    }
-  }, [modalOpen, editingModel]);
-
   function openCreate() {
     setEditingModel(null);
+    setForm(EMPTY_FORM);
     setModalOpen(true);
   }
 
   function openEdit(model: Model) {
     setEditingModel(model);
+    setForm(modelToForm(model));
     setModalOpen(true);
   }
 

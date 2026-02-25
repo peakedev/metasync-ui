@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,11 @@ function hasMetrics(m: ProcessingMetrics | null): m is ProcessingMetrics & { tot
   return m != null && m.totalTokens != null;
 }
 
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />;
+  return sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3 inline" /> : <ArrowDown className="ml-1 h-3 w-3 inline" />;
+}
+
 export default function StreamsPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const router = useRouter();
@@ -77,6 +82,7 @@ export default function StreamsPage() {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedStreamId, setSelectedStreamId] = useState<string | null>(null);
+  const [refreshTimestamp, setRefreshTimestamp] = useState(() => Date.now());
 
   const queryParams = useMemo(() => {
     const ms: Record<string, number> = {
@@ -88,12 +94,14 @@ export default function StreamsPage() {
     };
     const cutoff = ms[timeFilter];
     if (!cutoff) return undefined;
-    const from = new Date(Date.now() - cutoff).toISOString();
-    const to = new Date().toISOString();
+    const from = new Date(refreshTimestamp - cutoff).toISOString();
+    const to = new Date(refreshTimestamp).toISOString();
     return { from, to };
-  }, [timeFilter]);
+  }, [timeFilter, refreshTimestamp]);
 
-  const { data: streams, isPending, error, refetch, isRefetching } = useMetaSyncProxy<StreamSession[]>({ path: "/stream", tenantSlug, queryParams });
+  const { data: streams, isPending, error, isFetching } = useMetaSyncProxy<StreamSession[]>({ path: "/stream", tenantSlug, queryParams });
+
+  const handleRefresh = useCallback(() => setRefreshTimestamp(Date.now()), []);
 
   const summaryParams = useMemo(() => {
     const p: Record<string, string> = {};
@@ -149,12 +157,7 @@ export default function StreamsPage() {
     }
   }
 
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />;
-    return sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3 inline" /> : <ArrowDown className="ml-1 h-3 w-3 inline" />;
-  }
-
-  if (error) {
+    if (error) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold">Streams</h1>
@@ -168,8 +171,8 @@ export default function StreamsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">Streams</h1>
-          <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
-            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
         <Button onClick={() => router.push(`/${tenantSlug}/streams/new`)}>
@@ -179,7 +182,7 @@ export default function StreamsPage() {
       </div>
 
       <div className="flex gap-4">
-        <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v === "all" ? "" : v)}>
+        <Select value={timeFilter} onValueChange={(v) => { setTimeFilter(v === "all" ? "" : v); setRefreshTimestamp(Date.now()); }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Time range" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="1h">Last hour</SelectItem>
@@ -263,16 +266,16 @@ export default function StreamsPage() {
               <TableHead>Model</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("totalTokens")}>
-                Tokens <SortIcon field="totalTokens" />
+                Tokens <SortIcon field="totalTokens" sortField={sortField} sortDir={sortDir} />
               </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("totalCost")}>
-                Cost <SortIcon field="totalCost" />
+                Cost <SortIcon field="totalCost" sortField={sortField} sortDir={sortDir} />
               </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("duration")}>
-                Duration <SortIcon field="duration" />
+                Duration <SortIcon field="duration" sortField={sortField} sortDir={sortDir} />
               </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("createdAt")}>
-                Created <SortIcon field="createdAt" />
+                Created <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </TableHead>
               {clientRefColumns.map((col) => (
                 <TableHead key={col} className="capitalize">{col}</TableHead>

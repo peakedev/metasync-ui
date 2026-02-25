@@ -110,13 +110,14 @@ export function StreamAnalyticsChart({
     return localStorage.getItem("metasync_graph_expanded") === "true";
   });
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const [defaultTimestamp] = useState(() => Date.now());
 
   const analyticsParams = useMemo(() => {
     // Use page filter if provided, otherwise default to last 24h
-    const effectiveFrom = from ?? new Date(Date.now() - 86400000).toISOString();
-    const effectiveTo = to ?? new Date().toISOString();
+    const effectiveFrom = from ?? new Date(defaultTimestamp - 86400000).toISOString();
+    const effectiveTo = to ?? new Date(defaultTimestamp).toISOString();
     return { from: effectiveFrom, to: effectiveTo };
-  }, [from, to]);
+  }, [from, to, defaultTimestamp]);
 
   const { data, isPending, error, refetch } =
     useMetaSyncProxy<StreamAnalyticsResponse>(
