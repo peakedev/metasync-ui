@@ -35,7 +35,7 @@ export default function UsersPage() {
   const { data: members = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["tenant-members", tenant?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tenant_memberships").select("*").eq("tenant_id", tenant!.id);
+      const { data, error } = await supabase.from("tenant_memberships").select("*, user:user_id(email:raw_user_meta_data->email)").eq("tenant_id", tenant!.id);
       if (error) throw error;
       return data;
     },
@@ -238,7 +238,7 @@ export default function UsersPage() {
 
       <Table>
         <TableHeader>
-          <TableRow><TableHead>User ID</TableHead><TableHead>Role</TableHead><TableHead>Clients</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+          <TableRow><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Clients</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
         </TableHeader>
         <TableBody>
           {members.map(m => {
@@ -248,7 +248,7 @@ export default function UsersPage() {
 
             return (
               <TableRow key={m.id}>
-                <TableCell className="font-mono text-sm">{m.user_id}</TableCell>
+                <TableCell>{(m as any).user?.email || m.user_id}</TableCell>
                 <TableCell><Badge variant="outline">{m.role}</Badge></TableCell>
                 <TableCell>
                   {m.role === "tenant_admin" ? (

@@ -68,11 +68,11 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Tenant users: fetch assigned client IDs from junction table
+  // Tenant users: fetch assigned client IDs, then resolve names from MetaSync backend
   const { data: userClients = [], isLoading: userClientsLoading } = useQuery<
     AssignedClient[]
   >({
-    queryKey: ["user-client-assignments", user?.id],
+    queryKey: ["user-client-assignments", user?.id, claims.tenant_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_client_assignments")
@@ -80,13 +80,27 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         .eq("user_id", user!.id);
 
       if (error) throw error;
+      const assignedIds = new Set((data || []).map((row) => row.client_id));
+      if (assignedIds.size === 0) return [];
 
-      return (data || []).map((row) => ({
-        id: row.client_id,
-        name: row.client_id,
+      // Resolve names from MetaSync backend (uses admin key server-side)
+      const allClients = await proxyFetch(claims.tenant_id!, "/clients") as Array<{
+        clientId: string;
+        name: string;
+        enabled: boolean;
+      }>;
+
+      if (!Array.isArray(allClients)) {
+        return [...assignedIds].map((id) => ({ id, name: id }));
+      }
+
+      const nameMap = new Map(allClients.map((c) => [c.clientId, c.name]));
+      return [...assignedIds].map((id) => ({
+        id,
+        name: nameMap.get(id) || id,
       }));
     },
-    enabled: !!user && isTenantUser,
+    enabled: !!user && isTenantUser && !!claims.tenant_id,
   });
 
   // Tenant admins: fetch all clients from MetaSync backend via proxy
