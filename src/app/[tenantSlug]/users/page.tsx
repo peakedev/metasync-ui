@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserPlus, Trash2, Copy, Check, Eye, EyeOff, X, Plus, RefreshCw } from "lucide-react";
@@ -241,19 +242,20 @@ export default function UsersPage() {
                         <span className="text-sm text-muted-foreground">No clients</span>
                       )}
                       {unassigned.length > 0 && (
-                        <Select
-                          value=""
-                          onValueChange={(v) => assignMutation.mutate({ userId: m.user_id, clientId: v })}
-                        >
-                          <SelectTrigger className="h-7 w-7 p-0 border-dashed" size="sm">
-                            <Plus className="h-3 w-3" />
-                          </SelectTrigger>
-                          <SelectContent>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-7 w-7 border-dashed">
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
                             {unassigned.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                              <DropdownMenuItem key={c.id} onClick={() => assignMutation.mutate({ userId: m.user_id, clientId: c.id })}>
+                                {c.name}
+                              </DropdownMenuItem>
                             ))}
-                          </SelectContent>
-                        </Select>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   )}
