@@ -63,13 +63,28 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify the client belongs to the caller's tenant
+    // Verify the client belongs to the caller's tenant.
+    // Look up tenant from tenant_memberships (source of truth) rather than
+    // app_metadata, which may not have tenant_id persisted for all users.
     if (claims.user_role !== "owner") {
+      const { data: membership } = await serviceClient
+        .from("tenant_memberships")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!membership) {
+        return new Response(JSON.stringify({ error: "no_membership" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { data: client } = await serviceClient
         .from("clients")
         .select("id")
         .eq("id", clientId)
-        .eq("tenant_id", claims.tenant_id)
+        .eq("tenant_id", membership.tenant_id)
         .single();
 
       if (!client) {
