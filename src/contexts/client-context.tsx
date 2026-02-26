@@ -83,22 +83,28 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       const assignedIds = new Set((data || []).map((row) => row.client_id));
       if (assignedIds.size === 0) return [];
 
-      // Resolve names from MetaSync backend (uses admin key server-side)
-      const allClients = await proxyFetch(claims.tenant_id!, "/clients") as Array<{
-        clientId: string;
-        name: string;
-        enabled: boolean;
-      }>;
+      // Try to resolve names from MetaSync backend. This may fail for
+      // tenant_users because the proxy requires a clientId for non-admins.
+      // Fall back to showing raw IDs when resolution fails.
+      try {
+        const allClients = await proxyFetch(claims.tenant_id!, "/clients") as Array<{
+          clientId: string;
+          name: string;
+          enabled: boolean;
+        }>;
 
-      if (!Array.isArray(allClients)) {
-        return [...assignedIds].map((id) => ({ id, name: id }));
+        if (Array.isArray(allClients)) {
+          const nameMap = new Map(allClients.map((c) => [c.clientId, c.name]));
+          return [...assignedIds].map((id) => ({
+            id,
+            name: nameMap.get(id) || id,
+          }));
+        }
+      } catch {
+        // Name resolution failed — fall through to raw IDs
       }
 
-      const nameMap = new Map(allClients.map((c) => [c.clientId, c.name]));
-      return [...assignedIds].map((id) => ({
-        id,
-        name: nameMap.get(id) || id,
-      }));
+      return [...assignedIds].map((id) => ({ id, name: id }));
     },
     enabled: !!user && isTenantUser && !!claims.tenant_id,
   });
