@@ -67,11 +67,12 @@ Deno.serve(async (req: Request) => {
     if (claims.user_role !== "owner") {
       const { data: client } = await serviceClient
         .from("clients")
-        .select("tenant_id")
+        .select("id")
         .eq("id", clientId)
+        .eq("tenant_id", claims.tenant_id)
         .single();
 
-      if (!client || client.tenant_id !== claims.tenant_id) {
+      if (!client) {
         return new Response(JSON.stringify({ error: "tenant_mismatch" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
