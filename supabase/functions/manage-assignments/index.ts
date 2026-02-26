@@ -82,15 +82,27 @@ Deno.serve(async (req: Request) => {
     }
 
     // Verify the client belongs to the specified tenant
-    const { data: client } = await serviceClient
+    const { data: client, error: clientError } = await serviceClient
       .from("clients")
-      .select("id")
+      .select("id, tenant_id")
       .eq("id", clientId)
-      .eq("tenant_id", tenantId)
       .single();
 
-    if (!client) {
-      return new Response(JSON.stringify({ error: "client_not_in_tenant" }), {
+    if (clientError || !client) {
+      return new Response(JSON.stringify({
+        error: "client_not_found",
+        debug: { clientId, tenantId, queryError: clientError?.message ?? null },
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (client.tenant_id !== tenantId) {
+      return new Response(JSON.stringify({
+        error: "client_not_in_tenant",
+        debug: { clientId, tenantId, clientTenantId: client.tenant_id },
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
