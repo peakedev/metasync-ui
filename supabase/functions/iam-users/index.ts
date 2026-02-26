@@ -101,10 +101,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Fetch client assignments for these users
+    // Fetch client assignments for these users (client_id is an opaque MetaSync UUID)
     const { data: assignments } = await serviceClient
       .from("user_client_assignments")
-      .select("user_id, client_id, clients(id, name)")
+      .select("user_id, client_id")
       .in("user_id", userIds.length > 0 ? userIds : ["00000000-0000-0000-0000-000000000000"]);
 
     // Build a map: userId -> array of assigned clients
@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
       if (!clientMap[uid]) clientMap[uid] = [];
       clientMap[uid].push({
         clientId: (a as any).client_id,
-        clientName: (a as any).clients?.name || "",
+        clientName: "",
       });
     }
 

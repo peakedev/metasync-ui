@@ -83,15 +83,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Fetch client assignments for this user
+    // Fetch client assignments for this user (client_id is an opaque MetaSync UUID)
     const { data: assignments } = await serviceClient
       .from("user_client_assignments")
-      .select("client_id, clients(id, name)")
+      .select("client_id")
       .eq("user_id", userId);
 
     const clientList = (assignments || []).map((a: any) => ({
       clientId: a.client_id,
-      clientName: a.clients?.name || "",
+      clientName: "",
     }));
 
     // Determine provider

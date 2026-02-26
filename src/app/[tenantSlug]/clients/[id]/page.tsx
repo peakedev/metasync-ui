@@ -132,31 +132,67 @@ export default function ClientDetailPage() {
 
   const assignMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("user_client_assignments")
-        .insert({ user_id: userId, client_id: id });
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-assignments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "assign", userId, clientId: id, tenantId: tenant!.id }),
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-users", id] });
       queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id, id] });
       toast.success("User assigned");
     },
+    onError: (err) => {
+      toast.error(`Failed to assign user: ${err.message}`);
+    },
   });
 
   const unassignMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("user_client_assignments")
-        .delete()
-        .eq("user_id", userId)
-        .eq("client_id", id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-assignments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "unassign", userId, clientId: id, tenantId: tenant!.id }),
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-users", id] });
       queryClient.invalidateQueries({ queryKey: ["unassigned-users", tenant?.id, id] });
       toast.success("User unassigned");
+    },
+    onError: (err) => {
+      toast.error(`Failed to unassign user: ${err.message}`);
     },
   });
 

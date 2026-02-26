@@ -68,7 +68,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Tenant users: fetch assigned clients via user_client_assignments
+  // Tenant users: fetch assigned client IDs from junction table
   const { data: userClients = [], isLoading: userClientsLoading } = useQuery<
     AssignedClient[]
   >({
@@ -76,14 +76,14 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_client_assignments")
-        .select("client_id, clients(id, name)")
+        .select("client_id")
         .eq("user_id", user!.id);
 
       if (error) throw error;
 
-      return (data || []).map((row: any) => ({
-        id: row.clients?.id ?? row.client_id,
-        name: row.clients?.name ?? "Unknown",
+      return (data || []).map((row) => ({
+        id: row.client_id,
+        name: row.client_id,
       }));
     },
     enabled: !!user && isTenantUser,
