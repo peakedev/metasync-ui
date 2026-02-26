@@ -82,9 +82,10 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "assign") {
-      const { error } = await serviceClient
-        .from("user_client_assignments")
-        .insert({ user_id: userId, client_id: clientId });
+      const { error } = await serviceClient.rpc("assign_client_to_user", {
+        p_user_id: userId,
+        p_client_id: clientId,
+      });
 
       if (error) {
         console.error("Assign error:", error);
@@ -97,11 +98,10 @@ Deno.serve(async (req: Request) => {
         );
       }
     } else if (action === "unassign") {
-      const { error } = await serviceClient
-        .from("user_client_assignments")
-        .delete()
-        .eq("user_id", userId)
-        .eq("client_id", clientId);
+      const { error } = await serviceClient.rpc("unassign_client_from_user", {
+        p_user_id: userId,
+        p_client_id: clientId,
+      });
 
       if (error) {
         console.error("Unassign error:", error);
