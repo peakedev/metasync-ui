@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { useMetaSyncMutation } from "@/hooks/use-metasync-mutation";
+import { useClientContext } from "@/contexts/client-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 export default function PromptsPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { selectedClientId } = useClientContext();
   const [filters, setFilters] = useState({ name: "", status: "", type: "" });
 
   // Modal state: null = closed, "new" = create, string = edit promptId
@@ -116,6 +118,15 @@ export default function PromptsPage() {
   const validTransitions = !isNew && promptDetail
     ? STATUS_TRANSITIONS[promptDetail.status] || []
     : ["DRAFT"];
+
+  if (!selectedClientId) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Prompts</h1>
+        <p className="text-muted-foreground">Select a client to view and manage prompts.</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
