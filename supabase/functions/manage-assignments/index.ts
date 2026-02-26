@@ -49,9 +49,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { action, userId, clientId } = await req.json();
+    const { action, userId, clientId, tenantId } = await req.json();
 
-    if (!action || !userId || !clientId) {
+    if (!action || !userId || !clientId || !tenantId) {
       return new Response(JSON.stringify({ error: "missing_params" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -63,36 +63,37 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify the client belongs to the caller's tenant.
-    // Look up tenant from tenant_memberships (source of truth) rather than
-    // app_metadata, which may not have tenant_id persisted for all users.
+    // Verify caller has admin membership in the specified tenant
     if (claims.user_role !== "owner") {
       const { data: membership } = await serviceClient
         .from("tenant_memberships")
-        .select("tenant_id")
+        .select("id")
         .eq("user_id", user.id)
+        .eq("tenant_id", tenantId)
+        .in("role", ["tenant_admin"])
         .single();
 
       if (!membership) {
-        return new Response(JSON.stringify({ error: "no_membership" }), {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
 
-      const { data: client } = await serviceClient
-        .from("clients")
-        .select("id")
-        .eq("id", clientId)
-        .eq("tenant_id", membership.tenant_id)
-        .single();
+    // Verify the client belongs to the specified tenant
+    const { data: client } = await serviceClient
+      .from("clients")
+      .select("id")
+      .eq("id", clientId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-      if (!client) {
-        return new Response(JSON.stringify({ error: "tenant_mismatch" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (!client) {
+      return new Response(JSON.stringify({ error: "client_not_in_tenant" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (action === "assign") {

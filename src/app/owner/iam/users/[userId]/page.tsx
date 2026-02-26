@@ -68,16 +68,16 @@ export default function UserDetailPage() {
     );
   }
 
-  function handleAssignClient(clientId: string) {
+  function handleAssignClient(tenantId: string, clientId: string) {
     assignClient.mutate(
-      { userId: params.userId, clientId },
+      { userId: params.userId, clientId, tenantId },
       { onError: (err) => toast.error(err.message) }
     );
   }
 
-  function handleUnassignClient(clientId: string) {
+  function handleUnassignClient(tenantId: string, clientId: string) {
     unassignClient.mutate(
-      { userId: params.userId, clientId },
+      { userId: params.userId, clientId, tenantId },
       { onError: (err) => toast.error(err.message) }
     );
   }
@@ -119,8 +119,8 @@ export default function UserDetailPage() {
               membership={m}
               isLastAdmin={m.role === "tenant_admin" && isLastAdminForTenant(m.tenantId)}
               onChangeRole={(newRole) => handleChangeRole(m.tenantId, newRole)}
-              onAssignClient={(clientId) => handleAssignClient(clientId)}
-              onUnassignClient={(clientId) => handleUnassignClient(clientId)}
+              onAssignClient={(clientId) => handleAssignClient(m.tenantId, clientId)}
+              onUnassignClient={(clientId) => handleUnassignClient(m.tenantId, clientId)}
               onRemove={() => handleRemoveMembership(m.tenantId)}
               isChangingRole={changeRole.isPending}
               isAssigning={assignClient.isPending}

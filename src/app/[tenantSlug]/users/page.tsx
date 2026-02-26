@@ -127,7 +127,7 @@ export default function UsersPage() {
             apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ action: "assign", userId, clientId }),
+          body: JSON.stringify({ action: "assign", userId, clientId, tenantId: tenant!.id }),
         }
       );
 
@@ -159,7 +159,7 @@ export default function UsersPage() {
             apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ action: "unassign", userId, clientId }),
+          body: JSON.stringify({ action: "unassign", userId, clientId, tenantId: tenant!.id }),
         }
       );
 

@@ -38,9 +38,11 @@ export function useIAMMutations() {
     mutationFn: async ({
       userId,
       clientId,
+      tenantId,
     }: {
       userId: string;
       clientId: string;
+      tenantId: string;
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
@@ -54,7 +56,7 @@ export function useIAMMutations() {
             apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ action: "assign", userId, clientId }),
+          body: JSON.stringify({ action: "assign", userId, clientId, tenantId }),
         }
       );
 
@@ -78,9 +80,11 @@ export function useIAMMutations() {
     mutationFn: async ({
       userId,
       clientId,
+      tenantId,
     }: {
       userId: string;
       clientId: string;
+      tenantId: string;
     }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
@@ -94,7 +98,7 @@ export function useIAMMutations() {
             apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ action: "unassign", userId, clientId }),
+          body: JSON.stringify({ action: "unassign", userId, clientId, tenantId }),
         }
       );
 
