@@ -123,6 +123,9 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
       toast.success("Client assigned");
     },
+    onError: (err) => {
+      toast.error(`Failed to assign client: ${err.message}`);
+    },
   });
 
   const unassignMutation = useMutation({
@@ -137,6 +140,9 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
       toast.success("Client unassigned");
+    },
+    onError: (err) => {
+      toast.error(`Failed to unassign client: ${err.message}`);
     },
   });
 

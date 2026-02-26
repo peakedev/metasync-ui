@@ -174,6 +174,13 @@ Deno.serve(async (req: Request) => {
 
       if (assignError) {
         console.error("Create client assignment error:", assignError);
+        return new Response(
+          JSON.stringify({ error: "client_assignment_failed", detail: assignError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
     }
 

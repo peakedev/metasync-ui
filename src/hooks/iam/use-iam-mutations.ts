@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
 export function useIAMMutations() {
@@ -28,6 +29,9 @@ export function useIAMMutations() {
       queryClient.invalidateQueries({ queryKey: ["iam-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-detail", variables.userId] });
     },
+    onError: (err) => {
+      toast.error(`Failed to change role: ${err.message}`);
+    },
   });
 
   const assignClient = useMutation({
@@ -48,6 +52,10 @@ export function useIAMMutations() {
       queryClient.invalidateQueries({ queryKey: ["iam-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-detail", variables.userId] });
       queryClient.invalidateQueries({ queryKey: ["user-client-assignments", variables.userId] });
+      toast.success("Client assigned");
+    },
+    onError: (err) => {
+      toast.error(`Failed to assign client: ${err.message}`);
     },
   });
 
@@ -71,6 +79,10 @@ export function useIAMMutations() {
       queryClient.invalidateQueries({ queryKey: ["iam-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-detail", variables.userId] });
       queryClient.invalidateQueries({ queryKey: ["user-client-assignments", variables.userId] });
+      toast.success("Client unassigned");
+    },
+    onError: (err) => {
+      toast.error(`Failed to unassign client: ${err.message}`);
     },
   });
 
