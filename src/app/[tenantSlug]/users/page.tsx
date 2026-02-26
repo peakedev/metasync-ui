@@ -115,10 +115,26 @@ export default function UsersPage() {
 
   const assignMutation = useMutation({
     mutationFn: async ({ userId, clientId }: { userId: string; clientId: string }) => {
-      const { error } = await supabase
-        .from("user_client_assignments")
-        .insert({ user_id: userId, client_id: clientId });
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-assignments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "assign", userId, clientId }),
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });
@@ -131,12 +147,26 @@ export default function UsersPage() {
 
   const unassignMutation = useMutation({
     mutationFn: async ({ userId, clientId }: { userId: string; clientId: string }) => {
-      const { error } = await supabase
-        .from("user_client_assignments")
-        .delete()
-        .eq("user_id", userId)
-        .eq("client_id", clientId);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-assignments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "unassign", userId, clientId }),
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-client-assignments"] });

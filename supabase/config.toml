@@ -383,6 +383,9 @@ verify_jwt = false
 [functions.create-user]
 verify_jwt = false
 
+[functions.manage-assignments]
+verify_jwt = false
+
 
 [edge_runtime]
 enabled = true
