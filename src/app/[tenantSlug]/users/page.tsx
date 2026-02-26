@@ -42,7 +42,7 @@ export default function UsersPage() {
   });
 
   const { data: clients = [] } = useQuery({
-    queryKey: ["tenant-clients", tenant?.id],
+    queryKey: ["tenant-clients-supabase", tenant?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("clients").select("id, name").eq("tenant_id", tenant!.id);
       if (error) throw error;
