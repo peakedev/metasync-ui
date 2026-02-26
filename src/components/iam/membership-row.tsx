@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { proxyFetch } from "@/hooks/use-metasync-proxy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,17 +54,16 @@ export function MembershipRow({
 }: MembershipRowProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const { data: allClients = [] } = useQuery({
-    queryKey: ["clients", membership.tenantId],
+  const { data: allClients = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["metasync-clients", membership.tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .eq("tenant_id", membership.tenantId)
-        .eq("enabled", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const result = await proxyFetch(membership.tenantId, "/clients") as Array<{
+        clientId: string;
+        name: string;
+        enabled: boolean;
+      }>;
+      if (!Array.isArray(result)) return [];
+      return result.filter((c) => c.enabled).map((c) => ({ id: c.clientId, name: c.name }));
     },
     enabled: membership.role === "tenant_user",
   });

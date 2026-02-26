@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useTenant } from "@/hooks/use-tenant";
+import { useMetaSyncProxy } from "@/hooks/use-metasync-proxy";
 import { generatePassword } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,30 +42,30 @@ export default function UsersPage() {
     enabled: !!tenant,
   });
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["tenant-clients-supabase", tenant?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("id, name").eq("tenant_id", tenant!.id);
-      if (error) throw error;
-      return data;
-    },
+  // Fetch clients from MetaSync backend (source of truth)
+  const { data: clients = [] } = useMetaSyncProxy<Array<{ clientId: string; name: string; enabled: boolean }>>({
+    path: "/clients",
+    tenantSlug,
     enabled: !!tenant,
   });
 
-  // Fetch all user_client_assignments for this tenant's clients
-  const clientIds = clients.map((c) => c.id);
+  // Normalize to { id, name } using MetaSync clientId
+  const normalizedClients = clients.filter((c) => c.enabled).map((c) => ({ id: c.clientId, name: c.name }));
+
+  // Fetch assignments for all members
+  const memberUserIds = members.map((m) => m.user_id);
   const { data: assignments = [] } = useQuery({
-    queryKey: ["tenant-client-assignments", tenant?.id],
+    queryKey: ["tenant-client-assignments", tenant?.id, memberUserIds],
     queryFn: async () => {
-      if (clientIds.length === 0) return [];
+      if (memberUserIds.length === 0) return [];
       const { data, error } = await supabase
         .from("user_client_assignments")
         .select("user_id, client_id")
-        .in("client_id", clientIds);
+        .in("user_id", memberUserIds);
       if (error) throw error;
       return data;
     },
-    enabled: !!tenant && clientIds.length > 0,
+    enabled: !!tenant && memberUserIds.length > 0,
   });
 
   // Map: userId -> set of assigned clientIds
@@ -243,7 +244,7 @@ export default function UsersPage() {
           {members.map(m => {
             const assigned = userAssignments[m.user_id] || [];
             const assignedSet = new Set(assigned);
-            const unassigned = clients.filter((c) => !assignedSet.has(c.id));
+            const unassigned = normalizedClients.filter((c) => !assignedSet.has(c.id));
 
             return (
               <TableRow key={m.id}>
@@ -255,7 +256,7 @@ export default function UsersPage() {
                   ) : (
                     <div className="flex flex-wrap items-center gap-1">
                       {assigned.map((cid) => {
-                        const client = clients.find((c) => c.id === cid);
+                        const client = normalizedClients.find((c) => c.id === cid);
                         return (
                           <Badge key={cid} variant="secondary" className="gap-1 pr-1">
                             {client?.name || cid}
@@ -309,7 +310,7 @@ export default function UsersPage() {
                 <div className="space-y-2"><Label>Initial Client (optional)</Label>
                   <Select value={createClientId || "none"} onValueChange={v => setCreateClientId(v === "none" ? "" : v)}>
                     <SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger>
-                    <SelectContent><SelectItem value="none">No client</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent><SelectItem value="none">No client</SelectItem>{normalizedClients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 {createError && <p className="text-sm text-destructive">{createError}</p>}

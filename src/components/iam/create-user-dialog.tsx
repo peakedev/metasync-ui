@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { proxyFetch } from "@/hooks/use-metasync-proxy";
 import { generatePassword } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,18 +59,17 @@ export function CreateUserDialog({ defaultTenantId, onSuccess }: CreateUserDialo
     },
   });
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["clients", tenantId],
+  const { data: clients = [] } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["metasync-clients", tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .eq("tenant_id", tenantId)
-        .eq("enabled", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const result = await proxyFetch(tenantId, "/clients") as Array<{
+        clientId: string;
+        name: string;
+        enabled: boolean;
+      }>;
+      if (!Array.isArray(result)) return [];
+      return result.filter((c) => c.enabled).map((c) => ({ id: c.clientId, name: c.name }));
     },
     enabled: !!tenantId && role === "tenant_user",
   });
